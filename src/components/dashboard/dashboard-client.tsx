@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -56,10 +56,53 @@ export function DashboardClient({
     !initialProfile.full_name.trim() || !initialProfile.phone?.trim(),
   );
 
-  const { capacity: capacityMap, refresh } = useLiveCapacity(capacity);
+  /** Shifts and teams, kept current when admins change them. */
+  const [shiftList, setShiftList] = useState<Shift[]>(shifts);
+  const [deptList, setDeptList] = useState<Department[]>(departments);
 
-  const bookedShifts = useMemo(() => shifts.filter((s) => mySet.has(s.id)), [shifts, mySet]);
-  const draftShifts = useMemo(() => shifts.filter((s) => draft.has(s.id)), [shifts, draft]);
+  const reloadStructure = useCallback(async () => {
+    const supabase = createClient();
+    const [d, s] = await Promise.all([
+      supabase.from("departments").select("*").order("name"),
+      supabase.from("shifts").select("*").order("start_time"),
+    ]);
+    if (!d.error && d.data) setDeptList(d.data as Department[]);
+    if (!s.error && s.data) setShiftList(s.data as Shift[]);
+  }, []);
+
+  const { capacity: capacityMap, refresh } = useLiveCapacity(capacity, reloadStructure);
+
+  // Keep this volunteer's selections and bookings in step across all their devices.
+  useEffect(() => {
+    const supabase = createClient();
+    async function reloadMine() {
+      const [sel, asg] = await Promise.all([
+        supabase.from("shift_selections").select("shift_id").eq("user_id", profile.id),
+        supabase.from("shift_assignments").select("shift_id").eq("user_id", profile.id),
+      ]);
+      if (!sel.error && sel.data) setDraft(new Set(sel.data.map((r) => r.shift_id as string)));
+      if (!asg.error && asg.data) setMySet(new Set(asg.data.map((r) => r.shift_id as string)));
+    }
+    const channel = supabase
+      .channel(`my-shifts-${profile.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "shift_selections", filter: `user_id=eq.${profile.id}` },
+        () => void reloadMine(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "shift_assignments", filter: `user_id=eq.${profile.id}` },
+        () => void reloadMine(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [profile.id]);
+
+  const bookedShifts = useMemo(() => shiftList.filter((s) => mySet.has(s.id)), [shiftList, mySet]);
+  const draftShifts = useMemo(() => shiftList.filter((s) => draft.has(s.id)), [shiftList, draft]);
 
   /** A shift clashes if it overlaps anything confirmed or selected (the shift itself is ignored). */
   function conflictFor(shift: Shift) {
@@ -204,7 +247,7 @@ export function DashboardClient({
               {tab === "schedule" && (
                 <MySchedule
                   shifts={bookedShifts}
-                  departments={departments}
+                  departments={deptList}
                   busy={busy}
                   onCancelRequest={setCancelTarget}
                   onBrowse={() => setTab("catalog")}
@@ -212,8 +255,8 @@ export function DashboardClient({
               )}
               {tab === "catalog" && (
                 <ShiftCatalog
-                  departments={departments}
-                  shifts={shifts}
+                  departments={deptList}
+                  shifts={shiftList}
                   capacity={capacityMap}
                   bookedIds={mySet}
                   draftIds={draft}
