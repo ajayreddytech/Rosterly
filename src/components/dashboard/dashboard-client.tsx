@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveCapacity } from "@/hooks/use-live-capacity";
 import { friendlyBookingError } from "@/lib/booking-errors";
+import { cn } from "@/lib/utils";
 import { findConflict, timeConflictMessage } from "@/lib/shifts";
 import type { Department, Profile, Shift, ShiftCapacity } from "@/lib/types";
 import { AppHeader } from "@/components/layout/app-header";
@@ -248,7 +249,13 @@ export function DashboardClient({
         onEditProfile={() => setProfileOpen(true)}
       />
 
-      <main className="relative mx-auto w-full max-w-6xl px-4 pb-32 pt-6 sm:px-6 md:pb-16 md:pl-24">
+      {/* Extra bottom space while the Submit bar is showing, so the last card can scroll clear of it. */}
+      <main
+        className={cn(
+          "relative mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 md:pl-24",
+          draftShifts.length > 0 ? "pb-60 md:pb-44" : "pb-32 md:pb-16",
+        )}
+      >
         <SideNav tab={tab} onChange={setTab} selectedCount={draftShifts.length} />
 
         <ProfileBar profile={profile} bookedCount={bookedShifts.length} />
