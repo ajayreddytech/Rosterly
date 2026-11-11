@@ -39,15 +39,20 @@ async function DashboardContent() {
     supabase.from("shift_selections").select("shift_id").eq("user_id", user.id),
   ]);
 
-  const profile = profileRes.data as Profile | null;
+  let profile = profileRes.data as Profile | null;
   if (!profile) {
-    return (
-      <main className="relative flex min-h-dvh items-center justify-center p-6 text-center">
-        <p className="max-w-sm text-slate-300">
-          We could not load your volunteer profile. Please sign out and sign in again.
-        </p>
-      </main>
-    );
+    // Signed in, but no profile row yet: create it, then try again.
+    // If the migration (0004) has not been run, this call fails and we fall through to sign-out.
+    const ensured = await supabase.rpc("ensure_my_profile");
+    if (ensured.error) console.error("[dashboard] ensure_my_profile failed:", ensured.error);
+    const retry = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+    if (retry.error) console.error("[dashboard] profile retry failed:", retry.error);
+    profile = retry.data as Profile | null;
+    if (!profile) console.error("[dashboard] no profile for user", user.id, user.email);
+  }
+  if (!profile) {
+    // Still no profile: sign this browser out automatically and clear its session cookies.
+    redirect("/auth/reset?reason=profile");
   }
 
   const assignments = (assignmentRes.data ?? []) as Assignment[];
