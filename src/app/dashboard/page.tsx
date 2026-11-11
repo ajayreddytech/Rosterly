@@ -43,9 +43,12 @@ async function DashboardContent() {
   if (!profile) {
     // Signed in, but no profile row yet: create it, then try again.
     // If the migration (0004) has not been run, this call fails and we fall through to sign-out.
-    await supabase.rpc("ensure_my_profile");
+    const ensured = await supabase.rpc("ensure_my_profile");
+    if (ensured.error) console.error("[dashboard] ensure_my_profile failed:", ensured.error);
     const retry = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+    if (retry.error) console.error("[dashboard] profile retry failed:", retry.error);
     profile = retry.data as Profile | null;
+    if (!profile) console.error("[dashboard] no profile for user", user.id, user.email);
   }
   if (!profile) {
     // Still no profile: sign this browser out automatically and clear its session cookies.
