@@ -20,6 +20,17 @@ function safeNext(value: string | null): string {
   return value;
 }
 
+/** Message shown for an `?error=` value set by the server. */
+function errorMessageFor(code: string): string {
+  if (code === "profile") {
+    return "We could not load your volunteer profile, so you have been signed out. Please sign in again. If it still fails, contact a volunteer coordinator.";
+  }
+  if (code === "signedout") {
+    return "You have been signed out.";
+  }
+  return "That sign-in code or link is invalid or has expired. Request a new code.";
+}
+
 export function LoginForm() {
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
@@ -33,7 +44,7 @@ export function LoginForm() {
     authError ? "error" : "idle",
   );
   const [message, setMessage] = useState<string | null>(
-    authError ? "That sign-in link is invalid or has expired. Request a new code." : null,
+    authError ? errorMessageFor(authError) : null,
   );
   const [cooldown, setCooldown] = useState(0);
 
