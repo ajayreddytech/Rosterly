@@ -47,6 +47,8 @@ export function DashboardClient({
   const [draft, setDraft] = useState<Set<string>>(() => new Set(draftShiftIds));
   const [busy, setBusy] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Shift | null>(null);
+  /** The confirmed shift being replaced. Set by "Switch shift"; released when the new selection is submitted. */
+  const [switchFrom, setSwitchFrom] = useState<Shift | null>(null);
 
   // Every section opens from its beginning, not from wherever the previous one was scrolled to.
   useEffect(() => {
@@ -106,7 +108,9 @@ export function DashboardClient({
 
   /** A shift clashes if it overlaps anything confirmed or selected (the shift itself is ignored). */
   function conflictFor(shift: Shift) {
-    return findConflict(shift, [...bookedShifts, ...draftShifts]);
+    // The shift being switched away from does not count, since it will be released on submit.
+    const others = [...bookedShifts, ...draftShifts].filter((s) => s.id !== switchFrom?.id);
+    return findConflict(shift, others);
   }
 
   /** Selects or deselects a shift. The change is saved to the database straight away. */
@@ -175,6 +179,17 @@ export function DashboardClient({
       else okIds.push(shift.id);
     }
 
+    // A switch releases the old shift, but only once at least one new booking has gone through.
+    let released = false;
+    if (switchFrom && okIds.length > 0 && mySet.has(switchFrom.id)) {
+      const { error: releaseError } = await supabase.rpc("cancel_shift", { p_shift_id: switchFrom.id });
+      if (releaseError) {
+        problems.push(`${switchFrom.title}: could not be released. ${friendlyBookingError(releaseError.message)}`);
+      } else {
+        released = true;
+      }
+    }
+
     // Clear the saved selection for every shift that was booked (or attempted), not just the ones that
     // succeeded, so nothing stale is left behind to block the next selection.
     const { error: clearError } = await supabase
@@ -184,14 +199,21 @@ export function DashboardClient({
     if (clearError) console.error("Clearing submitted selections failed", clearError);
 
     setBusy(false);
-    setMySet((prev) => new Set([...prev, ...okIds]));
+    setMySet((prev) => {
+      const next = new Set([...prev, ...okIds]);
+      if (released && switchFrom) next.delete(switchFrom.id);
+      return next;
+    });
     setDraft(new Set());
+    if (okIds.length > 0) setSwitchFrom(null);
     void refresh();
     if (clearError) toast.error("Your selection could not be fully cleared.", { description: clearError.message });
 
     if (okIds.length > 0) {
       toast.success(
-        `Submitted! You're booked for ${okIds.length} shift${okIds.length === 1 ? "" : "s"}.`,
+        released && switchFrom
+          ? `Switched! ${switchFrom.title} has been released.`
+          : `Submitted! You're booked for ${okIds.length} shift${okIds.length === 1 ? "" : "s"}.`,
       );
     }
     problems.forEach((p) => toast.error(p));
@@ -251,9 +273,25 @@ export function DashboardClient({
                   busy={busy}
                   onCancelRequest={setCancelTarget}
                   onBrowse={() => setTab("catalog")}
+                  onSwitch={(shift) => {
+                    setSwitchFrom(shift);
+                    setTab("catalog");
+                  }}
                 />
               )}
               {tab === "catalog" && (
+                <>
+                {switchFrom && (
+                  <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-300/40 bg-amber-500/10 p-4 text-sm text-amber-50 sm:flex-row sm:items-center sm:justify-between">
+                    <p>
+                      Switching from <span className="font-semibold">{switchFrom.title}</span>. Select your new shift
+                      and press Submit. {switchFrom.title} will be released once the new shift is booked.
+                    </p>
+                    <Button variant="ghost" size="sm" onClick={() => setSwitchFrom(null)} disabled={busy}>
+                      Stop switching
+                    </Button>
+                  </div>
+                )}
                 <ShiftCatalog
                   departments={deptList}
                   shifts={shiftList}
@@ -265,6 +303,7 @@ export function DashboardClient({
                   onToggle={toggleDraft}
                   onCancelRequest={setCancelTarget}
                 />
+                </>
               )}
               {tab === "guidelines" && <Expectations />}
             </motion.section>

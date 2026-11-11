@@ -18,6 +18,7 @@ Stack: Next.js 16 (App Router, TypeScript), Tailwind CSS v4, Framer Motion, Luci
    3. [`supabase/migrations/0003_shift_selections.sql`](supabase/migrations/0003_shift_selections.sql): saved shift selections. Volunteers cannot select shifts without it.
    4. [`supabase/migrations/0004_profile_recovery.sql`](supabase/migrations/0004_profile_recovery.sql): creates missing volunteer profiles.
    5. [`supabase/migrations/0005_live_selections.sql`](supabase/migrations/0005_live_selections.sql): live sync of selections across devices.
+   6. [`supabase/migrations/0006_realtime_deletes.sql`](supabase/migrations/0006_realtime_deletes.sql): live sync of cancellations and removals.
 3. **Authentication → URL Configuration**
    - *Site URL*: `http://localhost:3000` (later: your production URL)
    - *Redirect URLs*: add `http://localhost:3000/auth/callback` and `https://YOUR-DOMAIN/auth/callback`
