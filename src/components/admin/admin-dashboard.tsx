@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Trash2,
   Users,
+  Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -352,6 +353,9 @@ export function AdminDashboard(props: Props) {
           Reset
         </Button>
       </GlassCard>
+
+      {/* Visual overview: department table + event flow */}
+      <VisualOverview shifts={filteredShifts} departments={departments} capacityMap={capacityMap} />
 
       {/* Live feed */}
       <GlassCard className="overflow-hidden">
@@ -712,6 +716,173 @@ function KpiCard({
         </div>
       )}
     </GlassCard>
+  );
+}
+
+/** Visual summary: a per-department table and a day-by-day event flow of the filtered shifts. */
+function VisualOverview({
+  shifts,
+  departments,
+  capacityMap,
+}: {
+  shifts: Shift[];
+  departments: Department[];
+  capacityMap: Record<string, ShiftCapacity>;
+}) {
+  const rows = departments
+    .map((d) => {
+      const deptShifts = shifts.filter((s) => s.department_id === d.id);
+      const capacity = deptShifts.reduce((sum, s) => sum + s.max_volunteers, 0);
+      const booked = deptShifts.reduce((sum, s) => sum + (capacityMap[s.id]?.booked_count ?? 0), 0);
+      return {
+        dept: d,
+        shiftCount: deptShifts.length,
+        capacity,
+        booked,
+        pct: capacity ? Math.round((booked / capacity) * 100) : 0,
+      };
+    })
+    .filter((r) => r.shiftCount > 0);
+
+  const days = new Map<string, Shift[]>();
+  for (const s of shifts) {
+    const key = formatDay(s.start_time);
+    const list = days.get(key) ?? [];
+    list.push(s);
+    days.set(key, list);
+  }
+
+  const deptName = (id: string) => departments.find((d) => d.id === id)?.name ?? "—";
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
+      {/* Department table */}
+      <GlassCard className="overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-white/5 px-5 py-4">
+          <Building2 className="h-4 w-4 text-amber-300" />
+          <h2 className="font-semibold text-amber-100">Department overview</h2>
+        </div>
+        {rows.length === 0 ? (
+          <p className="p-10 text-center text-sm text-slate-400">No departments match these filters.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-white/5">
+                  <th className="px-5 py-3 font-medium">Department</th>
+                  <th className="px-3 py-3 text-right font-medium">Shifts</th>
+                  <th className="px-3 py-3 text-right font-medium">Booked</th>
+                  <th className="px-5 py-3 font-medium">Fill</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <motion.tr
+                    key={r.dept.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    className="border-b border-white/5 transition-colors hover:bg-white/[0.03]"
+                  >
+                    <td className="px-5 py-4 font-medium text-white">{r.dept.name}</td>
+                    <td className="px-3 py-4 text-right tabular-nums text-slate-300">{r.shiftCount}</td>
+                    <td className="px-3 py-4 text-right tabular-nums text-slate-300">
+                      {r.booked}/{r.capacity}
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex min-w-[140px] items-center gap-3">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
+                          <motion.div
+                            className="h-full rounded-full bg-gradient-to-r from-amber-400 to-violet-500"
+                            initial={false}
+                            animate={{ width: `${Math.min(r.pct, 100)}%` }}
+                            transition={{ duration: 0.6 }}
+                          />
+                        </div>
+                        <span className="w-10 text-right tabular-nums text-xs text-slate-400">{r.pct}%</span>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassCard>
+
+      {/* Event flow */}
+      <GlassCard className="overflow-hidden">
+        <div className="flex items-center justify-between gap-2 border-b border-white/5 px-5 py-4">
+          <h2 className="flex items-center gap-2 font-semibold text-amber-100">
+            <Workflow className="h-4 w-4 text-amber-300" /> Event flow
+          </h2>
+          <span className="text-xs text-slate-500">
+            {days.size} {days.size === 1 ? "day" : "days"}
+          </span>
+        </div>
+        {days.size === 0 ? (
+          <p className="p-10 text-center text-sm text-slate-400">No shifts to show in the flow.</p>
+        ) : (
+          <div className="max-h-[520px] overflow-y-auto p-5">
+            <ol className="ml-2 space-y-7 border-l-2 border-amber-400/20 pl-6">
+              {[...days.entries()].map(([day, list], di) => (
+                <li key={day} className="relative">
+                  <span className="absolute -left-[33px] top-0.5 h-4 w-4 rounded-full bg-amber-400 ring-4 ring-slate-900" />
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">{day}</p>
+                  <ul className="space-y-2.5">
+                    {list.map((s, si) => {
+                      const booked = capacityMap[s.id]?.booked_count ?? 0;
+                      const remaining = capacityMap[s.id]?.remaining_slots ?? s.max_volunteers;
+                      const pct = s.max_volunteers ? Math.round((booked / s.max_volunteers) * 100) : 0;
+                      return (
+                        <motion.li
+                          key={s.id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: di * 0.05 + si * 0.03 }}
+                          className="rounded-xl border border-amber-500/10 bg-white/[0.03] p-3.5"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-slate-100">{s.title}</p>
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {formatRange12(s.start_time, s.end_time)} · {deptName(s.department_id)}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {remaining <= 0 ? (
+                                <Badge tone="rose">Full</Badge>
+                              ) : remaining < 2 ? (
+                                <Badge tone="amber">{remaining} left</Badge>
+                              ) : (
+                                <Badge tone="emerald">{remaining} left</Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center gap-3">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                              <motion.div
+                                className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500"
+                                initial={false}
+                                animate={{ width: `${Math.min(pct, 100)}%` }}
+                                transition={{ duration: 0.5 }}
+                              />
+                            </div>
+                            <span className="tabular-nums text-xs text-slate-400">
+                              {booked}/{s.max_volunteers}
+                            </span>
+                          </div>
+                        </motion.li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </GlassCard>
+    </div>
   );
 }
 
