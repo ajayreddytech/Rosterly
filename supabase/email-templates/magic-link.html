@@ -16,7 +16,7 @@
             <tr>
               <td align="center" style="padding-bottom:20px;">
                 <img
-                  src="{{SITE_URL}}/brand/logo-circle.png"
+                  src="https://iskcon60.netlify.app/brand/logo-circle.png"
                   width="112"
                   height="112"
                   alt="ISKCON 60 logo"
@@ -36,9 +36,17 @@
                   Your sign-in link
                 </h1>
 
-                <p style="margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#fff4d2;text-align:center;">
-                  Tap the button below to sign in to the ISKCON 60 Gala Volunteer Dashboard. This link expires
-                  shortly and can only be used once.
+                <p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;color:#fff4d2;text-align:center;">
+                  Enter this code on the sign-in page to open the ISKCON 60 Gala Volunteer Dashboard:
+                </p>
+
+                <!-- One-time code (works on any device, no link needed) -->
+                <p style="margin:0 0 24px 0;font-size:32px;line-height:1;font-weight:bold;letter-spacing:8px;color:#f2d27e;text-align:center;font-family:'Courier New',Courier,monospace;">
+                  {{ .Token }}
+                </p>
+
+                <p style="margin:0 0 24px 0;font-size:13px;line-height:1.6;color:#f7e2b7;text-align:center;">
+                  The code expires shortly and can only be used once. Or, if you are on this device, you can tap the button below instead.
                 </p>
 
                 <!-- Button -->
@@ -73,7 +81,6 @@
             <tr>
               <td align="center" style="padding-top:20px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#f7e2b7;">
                 ISKCON Toronto &middot; 243 Avenue Rd, Toronto, ON M5R 2J6<br />
-                Saturday, November 14, 2026
               </td>
             </tr>
 

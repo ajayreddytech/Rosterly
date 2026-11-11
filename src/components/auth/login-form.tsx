@@ -1,45 +1,59 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { Loader2, Mail, MailCheck, Sparkles } from "lucide-react";
+import { KeyRound, Loader2, Mail, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { GlassCard } from "@/components/ui/glass-card";
 
+const CODE_LENGTH = 6;
+/** Supabase allows one code request per email every 60 seconds. */
+const RESEND_COOLDOWN_SECONDS = 60;
+
+/** Only same-site relative paths, so the code step cannot redirect off-site. */
+function safeNext(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+  return value;
+}
+
 export function LoginForm() {
   const params = useSearchParams();
-  const next = params.get("next") ?? "/dashboard";
+  const next = safeNext(params.get("next"));
   const authError = params.get("error");
 
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
+  const [code, setCode] = useState("");
+  // "code" step: the email was sent and the volunteer is typing the code.
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [status, setStatus] = useState<"idle" | "sending" | "verifying" | "error">(
     authError ? "error" : "idle",
   );
   const [message, setMessage] = useState<string | null>(
-    authError ? "That sign-in link is invalid or has expired. Request a new one." : null,
+    authError ? "That sign-in link is invalid or has expired. Request a new code." : null,
   );
+  const [cooldown, setCooldown] = useState(0);
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const trimmed = email.trim().toLowerCase();
-    if (!/^\S+@\S+\.\S+$/.test(trimmed)) {
-      setStatus("error");
-      setMessage("Please enter a valid email address.");
-      return;
-    }
+  // Count down the resend cooldown one second at a time.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
+  async function sendCode(address: string) {
     setStatus("sending");
     setMessage(null);
+    setCode("");
 
     const supabase = createClient();
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+    // No emailRedirectTo: the email carries a 6-digit code, so it works on any device.
     const { error } = await supabase.auth.signInWithOtp({
-      email: trimmed,
-      options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
+      email: address,
+      options: { shouldCreateUser: true },
     });
 
     if (error) {
@@ -47,8 +61,64 @@ export function LoginForm() {
       setMessage(error.message);
       return;
     }
-    setStatus("sent");
+    setEmail(address);
+    setCooldown(RESEND_COOLDOWN_SECONDS);
+    setStatus("idle");
+    setStep("code");
   }
+
+  async function onSubmitEmail(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const trimmed = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(trimmed)) {
+      setStatus("error");
+      setMessage("Please enter a valid email address.");
+      return;
+    }
+    await sendCode(trimmed);
+  }
+
+  async function verifyCode(value: string) {
+    setStatus("verifying");
+    setMessage(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: value,
+      type: "email",
+    });
+
+    if (error) {
+      setStatus("idle");
+      setCode("");
+      setMessage(
+        error.message.toLowerCase().includes("expired")
+          ? "That code has expired. Request a new one below."
+          : "That code is not correct. Check the email and try again.",
+      );
+      return;
+    }
+    // Full page load so the server sees the new session cookies straight away.
+    window.location.assign(next);
+  }
+
+  function onCodeChange(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, CODE_LENGTH);
+    setCode(digits);
+    if (digits.length === CODE_LENGTH) void verifyCode(digits);
+  }
+
+  function onSubmitCode(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (code.length !== CODE_LENGTH) {
+      setMessage(`Please enter the ${CODE_LENGTH}-digit code from the email.`);
+      return;
+    }
+    void verifyCode(code);
+  }
+
+  const busy = status === "sending" || status === "verifying";
 
   return (
     <motion.div
@@ -77,32 +147,95 @@ export function LoginForm() {
 
       <GlassCard className="p-6 sm:p-8">
         <AnimatePresence mode="wait">
-          {status === "sent" ? (
-            <motion.div
-              key="sent"
+          {step === "code" ? (
+            <motion.form
+              key="code"
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="py-6 text-center"
+              onSubmit={onSubmitCode}
+              className="space-y-5"
+              noValidate
             >
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
-                <MailCheck className="h-7 w-7" />
+              <div className="text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+                  <KeyRound className="h-7 w-7" />
+                </div>
+                <h2 className="text-lg font-semibold text-white">Enter your 6-digit code</h2>
+                <p className="mt-2 text-sm text-slate-300">
+                  We emailed a code to <span className="break-all text-amber-200">{email}</span>. Enter it
+                  here on any device.
+                </p>
               </div>
-              <h2 className="text-lg font-semibold text-white">Check your email for your login link</h2>
-              <p className="mt-2 text-sm text-slate-300">
-                We sent a login link to <span className="text-amber-200">{email}</span>. Open it on this
-                device to sign in. You can close this tab once you are signed in.
-              </p>
-              <button
-                type="button"
-                onClick={() => setStatus("idle")}
-                className="mt-6 text-sm text-amber-300 underline-offset-4 hover:underline cursor-pointer"
-              >
-                Use a different email
-              </button>
-            </motion.div>
+
+              <div>
+                <Label htmlFor="otp">Sign-in code</Label>
+                <Input
+                  id="otp"
+                  name="otp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]*"
+                  maxLength={CODE_LENGTH}
+                  placeholder="123456"
+                  value={code}
+                  onChange={(e) => onCodeChange(e.target.value)}
+                  disabled={busy}
+                  autoFocus
+                  className="h-14 text-center font-mono text-2xl tracking-[0.5em]"
+                />
+              </div>
+
+              <AnimatePresence>
+                {message && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    role="alert"
+                    className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
+                  >
+                    {message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
+              <Button type="submit" size="lg" className="w-full" disabled={busy || code.length !== CODE_LENGTH}>
+                {status === "verifying" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Checking code…
+                  </>
+                ) : (
+                  "Sign in"
+                )}
+              </Button>
+
+              <div className="flex flex-col items-center gap-3 text-sm">
+                <button
+                  type="button"
+                  onClick={() => void sendCode(email)}
+                  disabled={busy || cooldown > 0}
+                  className="text-amber-300 underline-offset-4 hover:underline cursor-pointer disabled:cursor-not-allowed disabled:text-slate-500 disabled:no-underline"
+                >
+                  {cooldown > 0 ? `Send a new code in ${cooldown}s` : "Send a new code"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("email");
+                    setStatus("idle");
+                    setCode("");
+                    setMessage(null);
+                  }}
+                  disabled={busy}
+                  className="text-slate-400 underline-offset-4 hover:underline cursor-pointer"
+                >
+                  Use a different email
+                </button>
+              </div>
+            </motion.form>
           ) : (
-            <motion.form key="form" onSubmit={onSubmit} className="space-y-5" noValidate>
+            <motion.form key="form" onSubmit={onSubmitEmail} className="space-y-5" noValidate>
               <div>
                 <Label htmlFor="email">Email address</Label>
                 <div className="relative">
@@ -117,7 +250,7 @@ export function LoginForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    disabled={status === "sending"}
+                    disabled={busy}
                     className="pl-10"
                   />
                 </div>
@@ -137,20 +270,20 @@ export function LoginForm() {
                 )}
               </AnimatePresence>
 
-              <Button type="submit" size="lg" className="w-full" disabled={status === "sending"}>
+              <Button type="submit" size="lg" className="w-full" disabled={busy}>
                 {status === "sending" ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Sending link…
+                    <Loader2 className="h-4 w-4 animate-spin" /> Sending code…
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-4 w-4" /> Send login link
+                    <Sparkles className="h-4 w-4" /> Send sign-in code
                   </>
                 )}
               </Button>
 
               <p className="text-center text-xs text-slate-500">
-                No password needed. We will email you a secure one-time sign-in link.
+                No password needed. We will email you a 6-digit code.
               </p>
             </motion.form>
           )}
