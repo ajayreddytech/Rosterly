@@ -13,9 +13,11 @@ interface Props {
   busy: boolean;
   onCancelRequest: (shift: Shift) => void;
   onBrowse: () => void;
+  /** Starts swapping this confirmed shift for another one. */
+  onSwitch: (shift: Shift) => void;
 }
 
-export function MySchedule({ shifts, departments, busy, onCancelRequest, onBrowse }: Props) {
+export function MySchedule({ shifts, departments, busy, onCancelRequest, onBrowse, onSwitch }: Props) {
   const sorted = [...shifts].sort(
     (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
   );
@@ -77,7 +79,7 @@ export function MySchedule({ shifts, departments, busy, onCancelRequest, onBrows
                 </div>
 
                 <div className="flex shrink-0 gap-2">
-                  <Button variant="outline" size="sm" onClick={onBrowse}>
+                  <Button variant="outline" size="sm" onClick={() => onSwitch(shift)} disabled={busy}>
                     <ArrowLeftRight className="h-4 w-4" /> Switch shift
                   </Button>
                   <Button
