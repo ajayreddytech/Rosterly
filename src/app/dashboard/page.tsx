@@ -1,0 +1,64 @@
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { AppHeader } from "@/components/layout/app-header";
+import { AmbientBackground } from "@/components/layout/ambient-background";
+import { PageSkeleton } from "@/components/layout/page-skeleton";
+import { DashboardClient } from "@/components/dashboard/dashboard-client";
+import type { Assignment, Department, Profile, Shift, ShiftCapacity } from "@/lib/types";
+
+export const metadata = { title: "Volunteer Dashboard · ISKCON 60 Gala" };
+
+// Per-user data is loaded inside Suspense so the shell can render instantly.
+export default function DashboardPage() {
+  return (
+    <div className="relative min-h-dvh">
+      <AmbientBackground />
+      <Suspense fallback={<PageSkeleton />}>
+        <DashboardContent />
+      </Suspense>
+    </div>
+  );
+}
+
+async function DashboardContent() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/dashboard");
+
+  const [profileRes, deptRes, shiftRes, capacityRes, assignmentRes] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("departments").select("*").order("name"),
+    supabase.from("shifts").select("*").order("start_time"),
+    supabase.from("shift_capacity").select("*"),
+    supabase.from("shift_assignments").select("*").eq("user_id", user.id),
+  ]);
+
+  const profile = profileRes.data as Profile | null;
+  if (!profile) {
+    return (
+      <main className="relative flex min-h-dvh items-center justify-center p-6 text-center">
+        <p className="max-w-sm text-slate-300">
+          We could not load your volunteer profile. Please sign out and sign in again.
+        </p>
+      </main>
+    );
+  }
+
+  const assignments = (assignmentRes.data ?? []) as Assignment[];
+
+  return (
+    <>
+      <AppHeader isAdmin={profile.role === "admin"} />
+      <DashboardClient
+        profile={profile}
+        departments={(deptRes.data ?? []) as Department[]}
+        shifts={(shiftRes.data ?? []) as Shift[]}
+        capacity={(capacityRes.data ?? []) as ShiftCapacity[]}
+        assignedShiftIds={assignments.map((a) => a.shift_id)}
+      />
+    </>
+  );
+}
