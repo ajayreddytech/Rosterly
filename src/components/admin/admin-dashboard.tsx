@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState, type ComponentType } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { AnimatePresence, animate, motion } from "framer-motion";
 import {
   Building2,
@@ -50,6 +50,14 @@ interface Props {
   bookedVolunteerCount: number;
 }
 
+/** A registered volunteer who has not signed up for any shift. */
+interface UnbookedVolunteer {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+}
+
 type DeleteTarget =
   | { type: "shift"; id: string; name: string; booked: number }
   | { type: "department"; id: string; name: string; shiftCount: number };
@@ -79,6 +87,9 @@ export function AdminDashboard(props: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [unbookedOpen, setUnbookedOpen] = useState(false);
+  const [unbookedLoading, setUnbookedLoading] = useState(false);
+  const [unbooked, setUnbooked] = useState<UnbookedVolunteer[]>([]);
 
   /* ---------- data loading ---------- */
   const reloadStructure = useCallback(async () => {
@@ -129,6 +140,28 @@ export function AdminDashboard(props: Props) {
       void supabase.removeChannel(channel);
     };
   }, [loadAttendance]);
+
+  /** Loads the volunteers who have no shift assignment, for the pop-up list. */
+  async function openUnbooked() {
+    setUnbookedOpen(true);
+    setUnbookedLoading(true);
+    const { data, error } = await createClient()
+      .from("profiles")
+      .select("id, full_name, email, phone, shift_assignments(id)")
+      .eq("role", "volunteer")
+      .order("full_name");
+    setUnbookedLoading(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const rows = (data ?? []) as unknown as (UnbookedVolunteer & { shift_assignments: { id: string }[] })[];
+    setUnbooked(
+      rows
+        .filter((r) => r.shift_assignments.length === 0)
+        .map(({ id, full_name, email, phone }) => ({ id, full_name, email, phone })),
+    );
+  }
 
   async function refreshAll() {
     setRefreshing(true);
@@ -303,6 +336,11 @@ export function AdminDashboard(props: Props) {
           label="Registered volunteers"
           value={volunteerCount}
           sub={`${bookedVolunteerCount} signed up for at least one shift · ${Math.max(volunteerCount - bookedVolunteerCount, 0)} signed up for none`}
+          action={
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => void openUnbooked()}>
+              View volunteers with no shifts
+            </Button>
+          }
         />
         <KpiCard icon={CalendarRange} label="Shifts offered" value={shifts.length} />
         <KpiCard
@@ -597,6 +635,34 @@ export function AdminDashboard(props: Props) {
       </GlassCard>
 
       {/* Dialogs */}
+      <Dialog
+        open={unbookedOpen}
+        onOpenChange={setUnbookedOpen}
+        title="Volunteers with no shifts"
+        description={
+          unbookedLoading
+            ? "Loading…"
+            : `${unbooked.length} ${unbooked.length === 1 ? "volunteer has" : "volunteers have"} not signed up for any shift.`
+        }
+      >
+        {unbookedLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-amber-300" />
+          </div>
+        ) : unbooked.length === 0 ? (
+          <p className="py-6 text-center text-sm text-slate-400">Every registered volunteer has at least one shift.</p>
+        ) : (
+          <ul className="divide-y divide-white/5">
+            {unbooked.map((v) => (
+              <li key={v.id} className="py-3">
+                <p className="font-medium text-slate-100">{v.full_name || "(no name)"}</p>
+                <p className="break-all text-xs text-slate-400">{v.email}</p>
+                <p className="text-xs text-slate-400">{v.phone || "No phone number"}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Dialog>
       <ShiftFormDialog
         open={shiftDialog.open}
         onOpenChange={(open) => setShiftDialog((s) => ({ ...s, open }))}
@@ -695,6 +761,7 @@ function KpiCard({
   suffix = "",
   sub,
   progress,
+  action,
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
@@ -702,6 +769,7 @@ function KpiCard({
   suffix?: string;
   sub?: string;
   progress?: number;
+  action?: ReactNode;
 }) {
   return (
     <GlassCard className="relative overflow-hidden p-5">
@@ -717,6 +785,7 @@ function KpiCard({
         {suffix}
       </p>
       {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
+      {action}
       {progress !== undefined && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/5">
           <motion.div
