@@ -3,7 +3,8 @@
 import { useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Flame, Loader2, Mail, MailCheck, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { Loader2, Mail, MailCheck, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -61,17 +62,17 @@ export function LoginForm() {
           initial={{ scale: 0.6, rotate: -12 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: "spring", stiffness: 180, damping: 12 }}
-          className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 to-orange-600 shadow-lg shadow-amber-500/30"
+          className="mx-auto mb-4 h-28 w-28 overflow-hidden rounded-full bg-indigo-950 shadow-2xl shadow-amber-500/40 ring-4 ring-amber-300/80"
         >
-          <Flame className="h-8 w-8 text-slate-950" />
+          <Image src="/brand/logo-circle.png" alt="ISKCON 60 logo" width={1024} height={1024} className="h-full w-full object-cover" priority />
         </motion.div>
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-300/80">
+        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-200">
           60th Anniversary · Gala 2026
         </p>
-        <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-          Iskcon 60 Gala volunteer Shift Signup
+        <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
+          <span className="text-shimmer">ISKCON 60 Gala Volunteer Dashboard</span>
         </h1>
-        <p className="mt-2 text-sm text-slate-400">Saturday, November 14, 2026 · Toronto</p>
+        <p className="mt-2 text-sm text-slate-300">Saturday, November 14, 2026 · Toronto</p>
       </div>
 
       <GlassCard className="p-6 sm:p-8">
@@ -87,9 +88,9 @@ export function LoginForm() {
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
                 <MailCheck className="h-7 w-7" />
               </div>
-              <h2 className="text-lg font-semibold text-white">Check your email for login link</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                We sent a magic link to <span className="text-amber-200">{email}</span>. Open it on this
+              <h2 className="text-lg font-semibold text-white">Check your email for your login link</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                We sent a login link to <span className="text-amber-200">{email}</span>. Open it on this
                 device to sign in. You can close this tab once you are signed in.
               </p>
               <button
@@ -143,7 +144,7 @@ export function LoginForm() {
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-4 w-4" /> Send Magic Link
+                    <Sparkles className="h-4 w-4" /> Send login link
                   </>
                 )}
               </Button>

@@ -1,13 +1,13 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { AppHeader } from "@/components/layout/app-header";
 import { AmbientBackground } from "@/components/layout/ambient-background";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import type { Assignment, Department, Profile, Shift, ShiftCapacity } from "@/lib/types";
 
-export const metadata = { title: "Volunteer Dashboard · ISKCON 60 Gala" };
+export const metadata = { title: "Volunteer Dashboard" };
 
 // Per-user data is loaded inside Suspense so the shell can render instantly.
 export default function DashboardPage() {
@@ -22,18 +22,21 @@ export default function DashboardPage() {
 }
 
 async function DashboardContent() {
+  // Per-user, time-sensitive data: render at request time, never prerender.
+  await connection();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/dashboard");
 
-  const [profileRes, deptRes, shiftRes, capacityRes, assignmentRes] = await Promise.all([
+  const [profileRes, deptRes, shiftRes, capacityRes, assignmentRes, selectionRes] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase.from("departments").select("*").order("name"),
     supabase.from("shifts").select("*").order("start_time"),
     supabase.from("shift_capacity").select("*"),
     supabase.from("shift_assignments").select("*").eq("user_id", user.id),
+    supabase.from("shift_selections").select("shift_id").eq("user_id", user.id),
   ]);
 
   const profile = profileRes.data as Profile | null;
@@ -51,13 +54,14 @@ async function DashboardContent() {
 
   return (
     <>
-      <AppHeader isAdmin={profile.role === "admin"} />
       <DashboardClient
+        isAdmin={profile.role === "admin"}
         profile={profile}
         departments={(deptRes.data ?? []) as Department[]}
         shifts={(shiftRes.data ?? []) as Shift[]}
         capacity={(capacityRes.data ?? []) as ShiftCapacity[]}
         assignedShiftIds={assignments.map((a) => a.shift_id)}
+        draftShiftIds={((selectionRes.data ?? []) as { shift_id: string }[]).map((s) => s.shift_id)}
       />
     </>
   );

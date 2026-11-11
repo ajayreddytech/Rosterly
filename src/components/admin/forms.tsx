@@ -73,6 +73,7 @@ function ShiftForm({
   const end = shift ? isoToZoned(shift.end_time) : null;
 
   const [title, setTitle] = useState(shift?.title ?? "");
+  const [description, setDescription] = useState(shift?.description ?? "");
   const [departmentId, setDepartmentId] = useState(
     shift?.department_id ?? defaultDepartmentId ?? departments[0]?.id ?? "",
   );
@@ -108,6 +109,7 @@ function ShiftForm({
     const supabase = createClient();
     const payload = {
       title: title.trim(),
+      description: description.trim() || null,
       department_id: departmentId,
       start_time: startIso,
       end_time: endIso,
@@ -131,6 +133,17 @@ function ShiftForm({
       <div>
         <Label htmlFor="shift_title">Title *</Label>
         <Input id="shift_title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lunch prasadam service" />
+      </div>
+      <div>
+        <Label htmlFor="shift_desc">Description</Label>
+        <textarea
+          id="shift_desc"
+          rows={3}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What volunteers will do on this shift, what to bring, who to report to"
+          className="flex w-full rounded-xl border border-amber-500/15 bg-slate-950/60 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/25"
+        />
       </div>
       <div>
         <Label htmlFor="shift_dept">Department *</Label>

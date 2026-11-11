@@ -1,32 +1,69 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------
-   Theme tokens — dark mode is the default and only theme.
+   Brand palette, taken from the 60th Anniversary logo:
+   royal navy, warm gold and cream.
+   The amber, orange, slate and indigo scales are remapped to this palette,
+   so existing component classes pick up the brand colours automatically.
    ------------------------------------------------------------------ */
 @theme {
-  --color-midnight: #090d16;
-  --color-navy: #0f172a;
-  --color-saffron: #f59e0b;
-  --color-amber-deep: #d97706;
-  --color-royal: #7c3aed;
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* Navy (logo blue) */
+  --color-indigo-900: #00264f;
+  --color-indigo-950: #001a38;
+
+  /* Gold & cream (logo gold and cream) */
+  --color-amber-50: #fffbf0;
+  --color-amber-100: #fff4d2;
+  --color-amber-200: #f7e2b7;
+  --color-amber-300: #f2d27e;
+  --color-amber-400: #e6b84f;
+  --color-amber-500: #d4a03a;
+  --color-amber-600: #b88215;
+  --color-amber-700: #946710;
+  --color-amber-800: #6e4d0c;
+  --color-amber-900: #4a3308;
+  --color-amber-950: #2e1f05;
+  --color-orange-300: #f2d27e;
+  --color-orange-400: #e6b84f;
+  --color-orange-500: #d4a03a;
+  --color-orange-600: #b88215;
+
+  /* Blue-grey text and surfaces, tinted toward the navy */
+  --color-slate-50: #f5f8fc;
+  --color-slate-100: #eaf0f8;
+  --color-slate-200: #d6e2f1;
+  --color-slate-300: #b3c8e3;
+  --color-slate-400: #8aa6cc;
+  --color-slate-500: #6282b0;
+  --color-slate-600: #41608c;
+  --color-slate-700: #2b4670;
+  --color-slate-800: #163358;
+  --color-slate-900: #0c2447;
+  --color-slate-950: #061a35;
+
+  /* Violet accents become royal blue */
+  --color-violet-200: #c6d6ee;
+  --color-violet-400: #5f8bc7;
+  --color-violet-500: #3368ad;
 }
 
 :root {
   color-scheme: dark;
-  --background: #090d16;
-  --foreground: #e2e8f0;
+  --background: #001a38;
+  --foreground: #fff4d2;
 }
 
 html {
-  background: #090d16;
+  background: #001a38;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   min-height: 100dvh;
-  background: #090d16;
+  background: #001a38;
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -34,31 +71,76 @@ body {
 }
 
 ::selection {
-  background: rgb(245 158 11 / 0.35);
-  color: #fff;
+  background: rgb(230 184 79 / 0.4);
+  color: #001a38;
 }
 
 /* ------------------------------------------------------------------
    Subtle geometric watermark: an 8-petal lotus / mandala motif.
    ------------------------------------------------------------------ */
 .pattern-mandala {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%23F59E0B' stroke-width='0.8'><circle cx='60' cy='60' r='18'/><circle cx='60' cy='60' r='34'/><circle cx='60' cy='60' r='50' stroke-dasharray='2 4'/><path d='M60 10 Q72 35 60 60 Q48 35 60 10Z'/><path d='M60 110 Q72 85 60 60 Q48 85 60 110Z'/><path d='M10 60 Q35 48 60 60 Q35 72 10 60Z'/><path d='M110 60 Q85 48 60 60 Q85 72 110 60Z'/><path d='M22 22 Q45 40 60 60 Q40 45 22 22Z'/><path d='M98 98 Q75 80 60 60 Q80 75 98 98Z'/><path d='M98 22 Q80 40 60 60 Q75 45 98 22Z'/><path d='M22 98 Q40 80 60 60 Q45 75 22 98Z'/></g></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%23E6B84F' stroke-width='0.8'><circle cx='60' cy='60' r='18'/><circle cx='60' cy='60' r='34'/><circle cx='60' cy='60' r='50' stroke-dasharray='2 4'/><path d='M60 10 Q72 35 60 60 Q48 35 60 10Z'/><path d='M60 110 Q72 85 60 60 Q48 85 60 110Z'/><path d='M10 60 Q35 48 60 60 Q35 72 10 60Z'/><path d='M110 60 Q85 48 60 60 Q85 72 110 60Z'/><path d='M22 22 Q45 40 60 60 Q40 45 22 22Z'/><path d='M98 98 Q75 80 60 60 Q80 75 98 98Z'/><path d='M98 22 Q80 40 60 60 Q75 45 98 22Z'/><path d='M22 98 Q40 80 60 60 Q45 75 22 98Z'/></g></svg>");
   background-size: 120px 120px;
 }
 
 /* ------------------------------------------------------------------
-   Floating glow orbs (ambient background)
+   Floating glow orbs: gold, royal blue and cream
    ------------------------------------------------------------------ */
 .orb {
   position: absolute;
   border-radius: 9999px;
   filter: blur(70px);
-  opacity: 0.45;
+  opacity: 0.5;
   animation: orb-drift 18s ease-in-out infinite alternate;
 }
-.orb-gold   { background: radial-gradient(circle, #f59e0b 0%, transparent 70%); }
-.orb-purple { background: radial-gradient(circle, #7c3aed 0%, transparent 70%); animation-delay: -6s; }
-.orb-amber  { background: radial-gradient(circle, #d97706 0%, transparent 70%); animation-delay: -11s; }
+.orb-gold   { background: radial-gradient(circle, #e6b84f 0%, transparent 70%); }
+.orb-rose   { background: radial-gradient(circle, #3368ad 0%, transparent 70%); animation-delay: -6s; }
+.orb-teal   { background: radial-gradient(circle, #b88215 0%, transparent 70%); animation-delay: -11s; }
+.orb-violet { background: radial-gradient(circle, #024383 0%, transparent 70%); animation-delay: -3s; }
+.orb-sky    { background: radial-gradient(circle, #fff4d2 0%, transparent 70%); animation-delay: -14s; }
+
+/* Slowly shifting navy gradient behind everything. */
+.bg-animated {
+  background: linear-gradient(-45deg, #001a38, #003265, #024383, #00264f, #001a38);
+  background-size: 400% 400%;
+  animation: gradient-shift 24s ease infinite;
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Twinkling cream sparkles. */
+.sparkles {
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, #fff4d2, transparent),
+    radial-gradient(2px 2px at 70% 60%, #f2d27e, transparent),
+    radial-gradient(1.5px 1.5px at 40% 80%, #f7e2b7, transparent),
+    radial-gradient(2px 2px at 85% 20%, #fff4d2, transparent),
+    radial-gradient(1.5px 1.5px at 55% 45%, #c6d6ee, transparent),
+    radial-gradient(1.5px 1.5px at 10% 90%, #f2d27e, transparent);
+  background-size: 320px 320px;
+  animation: twinkle 6s ease-in-out infinite alternate;
+}
+@keyframes twinkle {
+  from { opacity: 0.35; }
+  to   { opacity: 1; }
+}
+
+/* Gold shimmer for headings. */
+.text-shimmer {
+  background: linear-gradient(90deg, #f7e2b7, #e6b84f, #fff4d2, #f7e2b7);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 8s linear infinite;
+}
+@keyframes shimmer {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
 
 @keyframes orb-drift {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
@@ -72,8 +154,8 @@ body {
 .glass {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  background-color: rgb(15 23 42 / 0.6);
-  border: 1px solid rgb(245 158 11 / 0.1);
+  background-color: rgb(0 38 79 / 0.6);
+  border: 1px solid rgb(230 184 79 / 0.2);
 }
 
 /* Respect users who ask for less motion. */

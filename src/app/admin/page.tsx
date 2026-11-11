@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/layout/app-header";
 import { AmbientBackground } from "@/components/layout/ambient-background";
@@ -13,7 +14,7 @@ import type {
   ShiftCapacity,
 } from "@/lib/types";
 
-export const metadata = { title: "Admin · ISKCON 60 Gala Volunteers" };
+export const metadata = { title: "Admin Dashboard" };
 
 // Per-user data is loaded inside Suspense so the shell can render instantly.
 export default function AdminPage() {
@@ -28,6 +29,8 @@ export default function AdminPage() {
 }
 
 async function AdminContent() {
+  // Per-user, time-sensitive data: render at request time, never prerender.
+  await connection();
   const supabase = await createClient();
   const {
     data: { user },
@@ -59,7 +62,7 @@ async function AdminContent() {
 
   return (
     <>
-      <AppHeader isAdmin title="Admin · Gala Volunteer Control" />
+      <AppHeader isAdmin title="Celebrating 60 Years of ISKCON · Admin" />
       <main className="relative mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-6">
         <AdminDashboard
           departments={(deptRes.data ?? []) as Department[]}

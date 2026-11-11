@@ -1,9 +1,9 @@
-# Iskcon 60 Gala volunteer Shift Signup
+# ISKCON 60 Gala Volunteer Dashboard
 
 Volunteer shift signup for the ISKCON Toronto 60th Anniversary Gala — **Saturday, November 14, 2026**.
 
 - Passwordless **magic-link** sign-in (Supabase Auth)
-- Volunteers: browse shifts by department, book/cancel, see a live capacity counter, view expectations and a digital **Red Ticket** pass
+- Volunteers: browse shifts by department, book/cancel, see a live capacity counter, view expectations
 - Admins (`/admin`): live attendance feed, KPIs, shift and department CRUD, filters and CSV export
 - Database enforces capacity, time-overlap and race-safety (not just the UI)
 
@@ -58,7 +58,7 @@ supabase/migrations/0001_init.sql   schema, RLS, triggers, RPCs, seeds
 src/proxy.ts                        session refresh + protects /dashboard and /admin
 src/app/login                       magic-link sign-in
 src/app/auth/callback               magic-link landing → deep link (?next=)
-src/app/dashboard                   volunteer portal (catalog, schedule, expectations, red ticket)
+src/app/dashboard                   volunteer portal (my schedule, available shifts, guidelines)
 src/app/admin                       admin portal (live overview, CRUD, export)
 src/lib/shifts.ts                   time formatting, Toronto timezone conversion, clash detection
 src/hooks/use-live-capacity.ts      live remaining-slots hook
@@ -72,4 +72,4 @@ Deploy to Vercel (or any Node host) and set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT
 
 - Times are entered and shown in **America/Toronto** time.
 - The Volunteer Expectations text is a draft. Replace it with ISKCON Toronto's official guidelines before publishing.
-- Emergency contact fields are an addition to the spec's `profiles` table (`emergency_contact_name`, `emergency_contact_phone`), needed for the Red Ticket.
+- The `profiles` table still has `emergency_contact_name` and `emergency_contact_phone` columns from the first migration, but the app no longer collects or shows them.

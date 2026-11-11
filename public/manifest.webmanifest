@@ -1,12 +1,12 @@
 {
-  "name": "Iskcon 60 Gala volunteer Shift Signup",
-  "short_name": "Gala Volunteers",
-  "description": "Volunteer shift signup for the ISKCON Toronto 60th Anniversary Gala",
+  "name": "ISKCON 60 Gala Volunteer Dashboard",
+  "short_name": "Volunteer Dashboard",
+  "description": "Volunteer shift dashboard for the ISKCON Toronto 60th Anniversary Gala",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#090D16",
-  "theme_color": "#090D16",
+  "background_color": "#003265",
+  "theme_color": "#003265",
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    { "src": "/brand/badge.png", "sizes": "952x952", "type": "image/png", "purpose": "any" }
   ]
 }

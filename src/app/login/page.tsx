@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { AmbientBackground } from "@/components/layout/ambient-background";
 
-export const metadata = { title: "Sign in · ISKCON 60 Gala Volunteers" };
+export const metadata = { title: "Volunteer Dashboard" };
 
 export default function LoginPage() {
   return (

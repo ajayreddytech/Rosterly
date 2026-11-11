@@ -21,6 +21,7 @@ export interface Shift {
   id: string;
   department_id: string;
   title: string;
+  description: string | null;
   start_time: string;
   end_time: string;
   max_volunteers: number;

@@ -7,16 +7,16 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Iskcon 60 Gala volunteer Shift Signup",
+  title: "Volunteer Dashboard",
   description:
-    "Sign up for volunteer shifts for the ISKCON Toronto 60th Anniversary Gala — Saturday, November 14, 2026.",
-  applicationName: "ISKCON 60 Gala Volunteers",
+    "Volunteer shift dashboard for the ISKCON Toronto 60th Anniversary Gala — Saturday, November 14, 2026.",
+  applicationName: "ISKCON 60 Gala Volunteer Dashboard",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Gala Volunteers", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Volunteer Dashboard", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#090D16",
+  themeColor: "#003265",
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
@@ -25,7 +25,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}>
-      <body className="min-h-full bg-[#090D16] text-slate-200">
+      <body className="min-h-full bg-[#001a38] text-slate-200">
         {children}
         <Toaster
           theme="dark"

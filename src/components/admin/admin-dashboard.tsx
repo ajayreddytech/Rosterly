@@ -8,9 +8,11 @@ import {
   ChevronDown,
   Download,
   Gauge,
+  Loader2,
   Pencil,
   Plus,
   RefreshCw,
+  RotateCcw,
   Trash2,
   Users,
 } from "lucide-react";
@@ -72,6 +74,8 @@ export function AdminDashboard(props: Props) {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   /* ---------- data loading ---------- */
   const reloadStructure = useCallback(async () => {
@@ -122,6 +126,24 @@ export function AdminDashboard(props: Props) {
     setRefreshing(true);
     await Promise.all([reloadStructure(), loadAttendance(), refreshCapacity()]);
     setRefreshing(false);
+  }
+
+  /** Removes every volunteer booking so each shift is back to its full capacity. */
+  async function resetAllFillings() {
+    setResetting(true);
+    const { error } = await createClient()
+      .from("shift_assignments")
+      .delete()
+      .not("id", "is", null);
+    setResetting(false);
+
+    if (error) {
+      toast.error("Could not reset the shift fillings.", { description: error.message });
+      return;
+    }
+    toast.success("All shift fillings have been reset to zero");
+    setResetOpen(false);
+    await Promise.all([loadAttendance(), refreshCapacity()]);
   }
 
   /* ---------- derived data ---------- */
@@ -257,6 +279,9 @@ export function AdminDashboard(props: Props) {
           <Button variant="outline" size="md" onClick={exportCsv}>
             <Download className="h-4 w-4" /> Export CSV
           </Button>
+          <Button variant="danger" size="md" onClick={() => setResetOpen(true)}>
+            <RotateCcw className="h-4 w-4" /> Reset all fillings
+          </Button>
           <Button size="md" onClick={() => setShiftDialog({ open: true, shift: null })}>
             <Plus className="h-4 w-4" /> New shift
           </Button>
@@ -384,6 +409,11 @@ export function AdminDashboard(props: Props) {
                             <span>
                               <span className="block font-medium text-white">{shift.title}</span>
                               <span className="block text-xs text-slate-500">{dept?.name ?? "—"}</span>
+                              {shift.description && (
+                                <span className="mt-1 block max-w-md text-xs leading-relaxed text-slate-400">
+                                  {shift.description}
+                                </span>
+                              )}
                             </span>
                           </button>
                         </td>
@@ -568,6 +598,28 @@ export function AdminDashboard(props: Props) {
         department={deptDialog.dept}
         onSaved={() => void reloadStructure()}
       />
+
+      <Dialog
+        open={resetOpen}
+        onOpenChange={(open) => !resetting && setResetOpen(open)}
+        title="Reset all shift fillings?"
+      >
+        <div className="space-y-5">
+          <p className="text-sm leading-relaxed text-slate-300">
+            Every volunteer booking on every shift will be removed, and all shifts will show their full capacity
+            again. Volunteers are not notified automatically. <span className="text-rose-300">This cannot be undone.</span>
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setResetOpen(false)} disabled={resetting}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={() => void resetAllFillings()} disabled={resetting}>
+              {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+              Reset to zero
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       <Dialog
         open={!!deleteTarget}
