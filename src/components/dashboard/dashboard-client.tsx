@@ -108,9 +108,9 @@ export function DashboardClient({
 
   /** A shift clashes if it overlaps anything confirmed or selected (the shift itself is ignored). */
   function conflictFor(shift: Shift) {
-    // The shift being switched away from does not count, since it will be released on submit.
-    const others = [...bookedShifts, ...draftShifts].filter((s) => s.id !== switchFrom?.id);
-    return findConflict(shift, others);
+    // Includes the shift being switched away from, so an overlapping switch is blocked here,
+    // not rejected by the database on Submit.
+    return findConflict(shift, [...bookedShifts, ...draftShifts]);
   }
 
   /** Selects or deselects a shift. The change is saved to the database straight away. */
