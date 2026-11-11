@@ -24,6 +24,14 @@ interface CatalogProps {
   onCancelRequest: (shift: Shift) => void;
 }
 
+/** Setup and logistics teams come first, Govindas last, everything else in between. */
+function teamRank(name: string) {
+  const n = name.toLowerCase();
+  if (n.includes("setup") || n.includes("logistic")) return 0;
+  if (n.includes("govinda")) return 2;
+  return 1;
+}
+
 export function ShiftCatalog(props: CatalogProps) {
   const { departments, shifts, capacity, bookedIds, draftIds, conflictFor, busy, onToggle, onCancelRequest } = props;
 
@@ -31,9 +39,11 @@ export function ShiftCatalog(props: CatalogProps) {
     return <EmptyState text="No teams have been set up yet. Check back soon." />;
   }
 
+  const orderedDepartments = [...departments].sort((a, b) => teamRank(a.name) - teamRank(b.name));
+
   return (
     <div className="space-y-10">
-      {departments.map((dept, deptIndex) => {
+      {orderedDepartments.map((dept, deptIndex) => {
         const deptShifts = shifts.filter((s) => s.department_id === dept.id);
         return (
           <motion.div

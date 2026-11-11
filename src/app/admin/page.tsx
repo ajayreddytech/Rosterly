@@ -46,7 +46,7 @@ async function AdminContent() {
   // Authorization: only admins may view this page. RLS enforces it again on every query.
   if (!profile || (profile as Profile).role !== "admin") redirect("/dashboard");
 
-  const [deptRes, shiftRes, capacityRes, attendanceRes, volunteerCountRes] = await Promise.all([
+  const [deptRes, shiftRes, capacityRes, attendanceRes, volunteerCountRes, bookedVolunteerRes] = await Promise.all([
     supabase.from("departments").select("*").order("name"),
     supabase.from("shifts").select("*").order("start_time"),
     supabase.from("shift_capacity").select("*"),
@@ -57,6 +57,11 @@ async function AdminContent() {
     supabase
       .from("profiles")
       .select("id", { count: "exact", head: true })
+      .eq("role", "volunteer"),
+    // Volunteers with at least one confirmed shift (one row per profile, counted once).
+    supabase
+      .from("profiles")
+      .select("id, shift_assignments!inner(id)", { count: "exact", head: true })
       .eq("role", "volunteer"),
   ]);
 
@@ -70,6 +75,7 @@ async function AdminContent() {
           capacity={(capacityRes.data ?? []) as ShiftCapacity[]}
           attendance={(attendanceRes.data ?? []) as unknown as AttendanceRow[]}
           volunteerCount={volunteerCountRes.count ?? 0}
+          bookedVolunteerCount={bookedVolunteerRes.count ?? 0}
         />
       </main>
     </>

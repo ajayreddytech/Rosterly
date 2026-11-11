@@ -47,6 +47,7 @@ interface Props {
   capacity: ShiftCapacity[];
   attendance: AttendanceRow[];
   volunteerCount: number;
+  bookedVolunteerCount: number;
 }
 
 type DeleteTarget =
@@ -58,6 +59,7 @@ export function AdminDashboard(props: Props) {
   const [shifts, setShifts] = useState(props.shifts);
   const [attendance, setAttendance] = useState(props.attendance);
   const [volunteerCount, setVolunteerCount] = useState(props.volunteerCount);
+  const [bookedVolunteerCount, setBookedVolunteerCount] = useState(props.bookedVolunteerCount);
 
   const [deptFilter, setDeptFilter] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
@@ -91,15 +93,20 @@ export function AdminDashboard(props: Props) {
 
   const loadAttendance = useCallback(async () => {
     const supabase = createClient();
-    const [a, c] = await Promise.all([
+    const [a, c, b] = await Promise.all([
       supabase
         .from("shift_assignments")
         .select("id, shift_id, assigned_at, profiles(full_name, email, phone)")
         .order("assigned_at", { ascending: true }),
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "volunteer"),
+      supabase
+        .from("profiles")
+        .select("id, shift_assignments!inner(id)", { count: "exact", head: true })
+        .eq("role", "volunteer"),
     ]);
     if (a.data) setAttendance(a.data as unknown as AttendanceRow[]);
     if (c.count !== null && c.count !== undefined) setVolunteerCount(c.count);
+    if (b.count !== null && b.count !== undefined) setBookedVolunteerCount(b.count);
   }, []);
 
   const { capacity: capacityMap, refresh: refreshCapacity } = useLiveCapacity(
@@ -291,7 +298,12 @@ export function AdminDashboard(props: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <KpiCard icon={Users} label="Registered volunteers" value={volunteerCount} />
+        <KpiCard
+          icon={Users}
+          label="Registered volunteers"
+          value={volunteerCount}
+          sub={`${bookedVolunteerCount} signed up for at least one shift · ${Math.max(volunteerCount - bookedVolunteerCount, 0)} signed up for none`}
+        />
         <KpiCard icon={CalendarRange} label="Shifts offered" value={shifts.length} />
         <KpiCard
           icon={Gauge}

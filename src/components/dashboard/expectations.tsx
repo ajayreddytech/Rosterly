@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import { Clock3, HeartHandshake, MessageCircle, Phone, Shirt, ShieldCheck, Sparkles, UtensilsCrossed } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
-import { CONTACTS } from "@/lib/venue";
+import { CONTACTS, WHATSAPP_GROUP_URL } from "@/lib/venue";
 
 const SECTIONS = [
   {
@@ -128,6 +128,14 @@ export function Expectations() {
                 />
               </div>
             </div>
+            <a
+              href={WHATSAPP_GROUP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 block break-all rounded-xl border border-amber-300/20 bg-white/[0.04] px-4 py-3 text-center text-sm font-semibold text-amber-200 transition-colors hover:border-amber-300/50 hover:bg-white/[0.08]"
+            >
+              {WHATSAPP_GROUP_URL}
+            </a>
           </GlassCard>
         </motion.div>
       </div>
