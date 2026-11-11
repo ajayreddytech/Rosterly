@@ -2,7 +2,7 @@
 
 Volunteer shift signup for the ISKCON Toronto 60th Anniversary Gala — **Saturday, November 14, 2026**.
 
-- Passwordless **magic-link** sign-in (Supabase Auth)
+- Passwordless sign-in with a **6-digit email code** (Supabase Auth). Works on any device.
 - Volunteers: browse shifts by department, book/cancel, see a live capacity counter, view expectations
 - Admins (`/admin`): live attendance feed, KPIs, shift and department CRUD, filters and CSV export
 - Database enforces capacity, time-overlap and race-safety (not just the UI)
@@ -12,12 +12,17 @@ Stack: Next.js 16 (App Router, TypeScript), Tailwind CSS v4, Framer Motion, Luci
 ## 1. Create the Supabase project
 
 1. Create a project at https://supabase.com.
-2. **SQL Editor → New query**: paste the contents of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) and run it. This creates the tables, RLS policies, booking rules, realtime wiring, the `shift_capacity` view and the three department seeds.
+2. **SQL Editor → New query**: run these migrations **in order**, each in its own query:
+   1. [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql): tables, RLS policies, booking rules, realtime wiring, the `shift_capacity` view and the three department seeds.
+   2. [`supabase/migrations/0002_shift_description.sql`](supabase/migrations/0002_shift_description.sql): shift descriptions. Admins cannot create shifts without it.
+   3. [`supabase/migrations/0003_shift_selections.sql`](supabase/migrations/0003_shift_selections.sql): saved shift selections. Volunteers cannot select shifts without it.
 3. **Authentication → URL Configuration**
    - *Site URL*: `http://localhost:3000` (later: your production URL)
    - *Redirect URLs*: add `http://localhost:3000/auth/callback` and `https://YOUR-DOMAIN/auth/callback`
-4. **Authentication → Email Templates → Magic Link**: make sure the body contains `{{ .ConfirmationURL }}`.
-5. **Authentication → Rate limits / SMTP**: the built-in email sender is heavily rate-limited. For event sign-ups, configure custom SMTP (Authentication → SMTP Settings).
+4. **Authentication → Email Templates → Magic Link**: paste in the contents of [`supabase/email-templates/magic-link.html`](supabase/email-templates/magic-link.html). It must contain `{{ .Token }}` (the 6-digit code that volunteers type on the sign-in page). Replace `{{SITE_URL}}` in the logo `src` with your production domain. Supabase does not fill that in.
+5. **Authentication → Providers → Email**: keep *Email* enabled. Under the OTP settings, leave the code length at **6** and set *OTP expiry* to **900** seconds (15 minutes) so codes don't sit around for an hour.
+6. **Authentication → Rate limits / SMTP**: the built-in email sender is heavily rate-limited. For event sign-ups, configure custom SMTP (Authentication → SMTP Settings) before you share the link. Then check *Rate limits → Sign-ins / OTPs* so a few hundred volunteers can each request a code.
+7. **Test on your phone**: request a code on the production URL from a phone on mobile data, and sign in with it. Do this before you share the link.
 
 ## 2. Configure and run locally
 
