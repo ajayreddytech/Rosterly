@@ -9,6 +9,7 @@ import {
   Download,
   Gauge,
   Loader2,
+  Mail,
   Pencil,
   Plus,
   RefreshCw,
@@ -40,6 +41,8 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DepartmentFormDialog, ShiftFormDialog } from "./forms";
+import { EmailSchedule } from "./email-schedule";
+import { EmailTestPanel } from "./email-test-panel";
 
 interface Props {
   departments: Department[];
@@ -90,6 +93,7 @@ export function AdminDashboard(props: Props) {
   const [unbookedOpen, setUnbookedOpen] = useState(false);
   const [unbookedLoading, setUnbookedLoading] = useState(false);
   const [unbooked, setUnbooked] = useState<UnbookedVolunteer[]>([]);
+  const [sendingSignup, setSendingSignup] = useState(false);
 
   /* ---------- data loading ---------- */
   const reloadStructure = useCallback(async () => {
@@ -161,6 +165,36 @@ export function AdminDashboard(props: Props) {
         .filter((r) => r.shift_assignments.length === 0)
         .map(({ id, full_name, email, phone }) => ({ id, full_name, email, phone })),
     );
+  }
+
+  /** Queues and sends the "pick your shifts" email to every volunteer with no shift. */
+  async function sendSignupEmails() {
+    setSendingSignup(true);
+    try {
+      const res = await fetch("/api/admin/signup-reminders", { method: "POST" });
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        queued?: number;
+        alreadyEmailed?: number;
+        sent?: number;
+        failed?: number;
+        notConfigured?: boolean;
+      };
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not send the emails");
+        return;
+      }
+      toast.success(
+        `Sent ${body.sent ?? 0} email${body.sent === 1 ? "" : "s"}` +
+          (body.queued ? ` (${body.queued} new)` : "") +
+          (body.alreadyEmailed ? `, ${body.alreadyEmailed} had already received it` : "") +
+          ((body.failed ?? 0) > 0 ? `, ${body.failed} failed` : ""),
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the emails");
+    } finally {
+      setSendingSignup(false);
+    }
   }
 
   async function refreshAll() {
@@ -320,7 +354,7 @@ export function AdminDashboard(props: Props) {
           <Button variant="outline" size="md" onClick={exportCsv}>
             <Download className="h-4 w-4" /> Export CSV
           </Button>
-          <Button variant="danger" size="md" onClick={() => setResetOpen(true)}>
+          <Button variant="danger" size="md" disabled title="Disabled for safety" onClick={() => setResetOpen(true)}>
             <RotateCcw className="h-4 w-4" /> Reset all fillings
           </Button>
           <Button size="md" onClick={() => setShiftDialog({ open: true, shift: null })}>
@@ -634,6 +668,10 @@ export function AdminDashboard(props: Props) {
         </ul>
       </GlassCard>
 
+      {/* Email schedule */}
+      <EmailSchedule />
+      <EmailTestPanel />
+
       {/* Dialogs */}
       <Dialog
         open={unbookedOpen}
@@ -645,6 +683,14 @@ export function AdminDashboard(props: Props) {
             : `${unbooked.length} ${unbooked.length === 1 ? "volunteer has" : "volunteers have"} not signed up for any shift.`
         }
       >
+        {!unbookedLoading && unbooked.length > 0 && (
+          <div className="mb-4 flex justify-end">
+            <Button size="sm" disabled={sendingSignup} onClick={() => void sendSignupEmails()}>
+              {sendingSignup ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              Email these {unbooked.length} volunteer{unbooked.length === 1 ? "" : "s"}
+            </Button>
+          </div>
+        )}
         {unbookedLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-amber-300" />

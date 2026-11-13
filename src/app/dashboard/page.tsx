@@ -10,18 +10,24 @@ import type { Assignment, Department, Profile, Shift, ShiftCapacity } from "@/li
 export const metadata = { title: "Volunteer Dashboard" };
 
 // Per-user data is loaded inside Suspense so the shell can render instantly.
-export default function DashboardPage() {
+// ?tab=guidelines opens the Guidelines tab (used by the links in emails).
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const tab = (await searchParams).tab === "guidelines" ? "guidelines" : "schedule";
   return (
     <div className="relative min-h-dvh">
       <AmbientBackground />
       <Suspense fallback={<PageSkeleton />}>
-        <DashboardContent />
+        <DashboardContent initialTab={tab} />
       </Suspense>
     </div>
   );
 }
 
-async function DashboardContent() {
+async function DashboardContent({ initialTab }: { initialTab: "schedule" | "guidelines" }) {
   // Per-user, time-sensitive data: render at request time, never prerender.
   await connection();
   const supabase = await createClient();
@@ -60,6 +66,7 @@ async function DashboardContent() {
   return (
     <>
       <DashboardClient
+        initialTab={initialTab}
         isAdmin={profile.role === "admin"}
         profile={profile}
         departments={(deptRes.data ?? []) as Department[]}

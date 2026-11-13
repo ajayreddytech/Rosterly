@@ -22,6 +22,8 @@ import { EmergencyCancelDialog } from "./emergency-cancel-dialog";
 import { ProfileDialog } from "./profile-dialog";
 
 interface Props {
+  /** Tab to open first. Set from the ?tab= query string. */
+  initialTab?: TabId;
   isAdmin: boolean;
   profile: Profile;
   departments: Department[];
@@ -32,6 +34,7 @@ interface Props {
 }
 
 export function DashboardClient({
+  initialTab = "schedule",
   isAdmin,
   profile: initialProfile,
   departments,
@@ -41,7 +44,7 @@ export function DashboardClient({
   draftShiftIds,
 }: Props) {
   const [profile, setProfile] = useState(initialProfile);
-  const [tab, setTab] = useState<TabId>("schedule");
+  const [tab, setTab] = useState<TabId>(initialTab);
   /** Shifts the volunteer is confirmed in. */
   const [mySet, setMySet] = useState<Set<string>>(() => new Set(assignedShiftIds));
   /** Shifts selected in Available Shifts but not yet submitted. Saved in the database. */
