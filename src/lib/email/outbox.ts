@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emailConfigured, sendEmail } from "./brevo";
+import { loadCurrentVolunteer } from "./load-plan";
 import type { ReminderKind } from "./plan";
 import {
   renderBookingCancelled,
@@ -31,6 +32,7 @@ const RETRY_DELAY_MS = 5 * 60 * 1000;
 
 interface OutboxRow {
   id: string;
+  user_id: string;
   kind: EmailKind;
   payload: EmailPayload;
   attempts: number;
@@ -102,7 +104,7 @@ export async function processOutbox(opts: { kind?: EmailKind; limit: number }): 
   const admin = createAdminClient();
   let query = admin
     .from("email_outbox")
-    .select("id, kind, payload, attempts")
+    .select("id, user_id, kind, payload, attempts")
     .eq("status", "pending")
     .lte("send_at", new Date().toISOString())
     .order("send_at", { ascending: true })
@@ -133,7 +135,17 @@ async function deliver(
   if (claimError || !claimed || claimed.length === 0) return;
 
   try {
-    const res = await sendEmail(toMessage(row));
+    // Rebuild from the database right now, so the email matches the volunteer's current shifts.
+    const message = await buildCurrentMessage(row);
+    if (!message.ok) {
+      // The volunteer's shifts changed since this was queued, so this email no longer applies.
+      await admin
+        .from("email_outbox")
+        .update({ status: "failed", last_error: `skipped: ${message.reason}`.slice(0, 500) })
+        .eq("id", row.id);
+      return;
+    }
+    const res = await sendEmail(message.email);
     await admin
       .from("email_outbox")
       .update({
@@ -159,6 +171,44 @@ async function deliver(
   }
 }
 
-function toMessage(row: OutboxRow): RenderedEmail & { to: string } {
-  return { ...renderEmail(row.kind, row.payload), to: row.payload.email };
+type BuiltMessage =
+  | { ok: true; email: RenderedEmail & { to: string } }
+  | { ok: false; reason: string };
+
+/**
+ * Builds the email from the volunteer's shifts as they are now, not as they were
+ * when the email was queued. Returns ok:false when the email no longer applies.
+ */
+async function buildCurrentMessage(row: OutboxRow): Promise<BuiltMessage> {
+  const current = await loadCurrentVolunteer(row.user_id);
+  if (!current) return { ok: false, reason: "volunteer profile no longer exists" };
+  const base = { full_name: current.full_name, email: current.email };
+
+  switch (row.kind) {
+    case "reminder_morning":
+    case "reminder_later": {
+      if (current.shifts.length === 0) return { ok: false, reason: "no shifts left to remind about" };
+      const payload: ReminderPayload = { ...base, shifts: current.shifts };
+      return { ok: true, email: { ...renderEmail(row.kind, payload), to: current.email } };
+    }
+    case "reminder_event": {
+      if (current.shifts.length > 0) return { ok: false, reason: "volunteer now has a shift" };
+      const payload: ReminderPayload = { ...base, shifts: [] };
+      return { ok: true, email: { ...renderEmail(row.kind, payload), to: current.email } };
+    }
+    case "booking_confirmed": {
+      const booked = row.payload as ShiftEmailPayload;
+      const stillBooked = current.shifts.some(
+        (s) => s.title === booked.title && s.start_time === booked.start_time,
+      );
+      if (!stillBooked) return { ok: false, reason: "shift was removed before the confirmation was sent" };
+      const payload: ShiftEmailPayload = { ...booked, ...base };
+      return { ok: true, email: { ...renderEmail(row.kind, payload), to: current.email } };
+    }
+    case "booking_cancelled": {
+      // The cancelled shift is no longer assigned, so it is sent as stored.
+      const payload: ShiftEmailPayload = { ...(row.payload as ShiftEmailPayload), ...base };
+      return { ok: true, email: { ...renderEmail(row.kind, payload), to: current.email } };
+    }
+  }
 }

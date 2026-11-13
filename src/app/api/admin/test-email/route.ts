@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { emailConfigured, sendEmail } from "@/lib/email/brevo";
+import { loadCurrentVolunteer } from "@/lib/email/load-plan";
 import { renderEmail, type EmailKind } from "@/lib/email/outbox";
-import type { ReminderPayload } from "@/lib/email/templates";
-import { zonedToIso } from "@/lib/shifts";
-import { GALA_DAY } from "@/lib/venue";
+import type { PlanShift } from "@/lib/email/plan";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const MAX_RECIPIENTS = 10;
@@ -12,32 +12,40 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TEST_KINDS = ["reminder_morning", "reminder_later", "reminder_event"] as const;
 type TestKind = (typeof TEST_KINDS)[number];
 
-/** Sample data so a test looks like a real email. Nothing is written to the queue. */
-function sampleFor(kind: TestKind): ReminderPayload {
-  const at = (time: string) => zonedToIso(GALA_DAY, time);
-  if (kind === "reminder_morning") {
-    return {
-      full_name: "Test Volunteer",
-      email: "",
-      shifts: [
-        { title: "Test morning shift", department: "Test department", start_time: at("09:00"), end_time: at("12:00") },
-        { title: "Test shift 2", department: "Test department", start_time: at("13:00"), end_time: at("15:00") },
-      ],
-    };
-  }
-  if (kind === "reminder_later") {
-    return {
-      full_name: "Test Volunteer",
-      email: "",
-      shifts: [
-        { title: "Test afternoon shift", department: "Test department", start_time: at("13:00"), end_time: at("16:00") },
-      ],
-    };
-  }
-  return { full_name: "Test Volunteer", email: "", shifts: [] };
+interface PickedVolunteer {
+  full_name: string;
+  email: string;
+  shifts: PlanShift[];
 }
 
-// Admin only. Sends one of the three emails to the addresses typed in the admin panel.
+/**
+ * Picks a random volunteer whose real email would be of this type: reminders go to
+ * volunteers with at least one shift, the event email to volunteers with none.
+ * Returns their details as they are right now.
+ */
+async function pickVolunteer(kind: TestKind): Promise<PickedVolunteer | null> {
+  const admin = createAdminClient();
+  const [vols, assigned] = await Promise.all([
+    admin.from("profiles").select("id").eq("role", "volunteer"),
+    admin.from("shift_assignments").select("user_id"),
+  ]);
+  if (vols.error) throw new Error(`Could not read volunteers: ${vols.error.message}`);
+  if (assigned.error) throw new Error(`Could not read shifts: ${assigned.error.message}`);
+
+  const withShift = new Set((assigned.data ?? []).map((r) => r.user_id as string));
+  const wantShift = kind !== "reminder_event";
+  const eligible = (vols.data ?? [])
+    .map((v) => v.id as string)
+    .filter((id) => withShift.has(id) === wantShift);
+  if (eligible.length === 0) return null;
+
+  const id = eligible[Math.floor(Math.random() * eligible.length)];
+  const current = await loadCurrentVolunteer(id);
+  return current ? { full_name: current.full_name, email: current.email, shifts: current.shifts } : null;
+}
+
+// Admin only. Picks a random volunteer, builds the email they would really get, and sends it
+// to the test addresses typed in the admin panel. Nothing is written to the queue.
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -74,11 +82,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Not an email address: ${invalid.join(", ")}` }, { status: 400 });
   }
 
-  const sample = sampleFor(kind);
+  const volunteer = await pickVolunteer(kind);
+  if (!volunteer) {
+    return NextResponse.json(
+      { error: `No volunteer ${kind === "reminder_event" ? "without a shift" : "with a shift"} to pick from.` },
+      { status: 400 },
+    );
+  }
+
+  // The email this volunteer would really get, built from their current details.
+  const email = renderEmail(kind as EmailKind, {
+    full_name: volunteer.full_name,
+    email: volunteer.email,
+    shifts: kind === "reminder_event" ? [] : volunteer.shifts,
+  });
+
   const results = await Promise.all(
     recipients.map(async (to) => {
       try {
-        const email = renderEmail(kind as EmailKind, { ...sample, email: to });
         await sendEmail({ to, subject: `[TEST] ${email.subject}`, html: email.html, text: email.text });
         return { to, ok: true as const };
       } catch (err) {
@@ -91,6 +112,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     kind,
+    volunteer: volunteer.full_name || "Volunteer",
     sent: results.filter((r) => r.ok).length,
     failed: results.filter((r) => !r.ok).length,
     results,

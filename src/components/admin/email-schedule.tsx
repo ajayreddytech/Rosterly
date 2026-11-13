@@ -28,17 +28,12 @@ const GROUPS: { kind: ReminderKind; label: string; hint: string }[] = [
   {
     kind: "reminder_morning",
     label: "Morning shifts (start before 12:00)",
-    hint: "Sent the day before at 4:00 PM. One email per volunteer, listing all their shifts.",
+    hint: "Sent today, 13 Nov, at 5:30 PM. One email per volunteer, listing all their shifts.",
   },
   {
     kind: "reminder_later",
     label: "Later shifts (start at 12:00 or after)",
-    hint: "Sent on the day at 7:00 AM. One email per volunteer, listing all their shifts.",
-  },
-  {
-    kind: "reminder_event",
-    label: "Registered, no shift yet",
-    hint: "Event email sent on the gala day at 7:00 AM.",
+    hint: "Sent 14 Nov at 8:00 AM. One email per volunteer, listing all their shifts.",
   },
 ];
 

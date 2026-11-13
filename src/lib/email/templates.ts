@@ -128,11 +128,6 @@ function button(label: string, href: string): string {
   return `<a href="${esc(href)}" style="display:inline-block;margin:6px 8px 6px 0;padding:13px 24px;border-radius:8px;background-color:${C.button};color:${C.buttonText};text-decoration:none;font-weight:bold;font-size:15px;">${esc(label)}</a>`;
 }
 
-/** Secondary button: white with a maroon outline. */
-function outlineButton(label: string, href: string): string {
-  return `<a href="${esc(href)}" style="display:inline-block;margin:6px 8px 6px 0;padding:12px 23px;border-radius:8px;background-color:#ffffff;border:1.5px solid ${C.button};color:${C.button};text-decoration:none;font-weight:bold;font-size:15px;">${esc(label)}</a>`;
-}
-
 /** One shift, as a card with a saffron edge. */
 function shiftCard(s: PlanShift): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background:${C.shiftBg};border:1px solid ${C.line};border-left:4px solid ${C.shiftEdge};border-radius:8px;">
@@ -158,11 +153,17 @@ function dressCodeHtml(): string {
 function resourcesHtml(): string {
   return `<p style="margin:22px 0 8px;font-family:${SERIF};font-size:16px;font-weight:bold;color:${C.ink};">Volunteer Resources</p>
 ${button("WhatsApp Group", WHATSAPP_GROUP_URL)}
-${outlineButton("Volunteer Guidelines", GUIDELINES_URL)}`;
+${button("Volunteer Guidelines", GUIDELINES_URL)}
+${button("Volunteer Dashboard", DASHBOARD_URL)}`;
 }
 
 function resourcesText(): string {
-  return ["Volunteer Resources:", `- WhatsApp Group: ${WHATSAPP_GROUP_URL}`, `- Volunteer Guidelines: ${GUIDELINES_URL}`].join("\n");
+  return [
+    "Volunteer Resources:",
+    `- WhatsApp Group: ${WHATSAPP_GROUP_URL}`,
+    `- Volunteer Guidelines: ${GUIDELINES_URL}`,
+    `- Volunteer Dashboard: ${DASHBOARD_URL}`,
+  ].join("\n");
 }
 
 const SIGN_OFF_1 = "Thank you for your time, devotion, and selfless service,";

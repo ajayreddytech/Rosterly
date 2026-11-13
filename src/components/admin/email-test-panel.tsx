@@ -7,23 +7,25 @@ import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 
 const TESTS = [
-  { kind: "reminder_morning", label: "Morning shift reminder", hint: "Sample: two shifts, 9:00 AM and 1:00 PM" },
-  { kind: "reminder_later", label: "Later shift reminder", hint: "Sample: one shift, 1:00 PM" },
-  { kind: "reminder_event", label: "Event email (no shift)", hint: "The approved event design" },
+  { kind: "reminder_morning", label: "Morning shift reminder", hint: "A random volunteer who has shifts" },
+  { kind: "reminder_later", label: "Later shift reminder", hint: "A random volunteer who has shifts" },
+  { kind: "reminder_event", label: "Event email (no shift)", hint: "A random volunteer with no shift" },
 ] as const;
 
 type TestKind = (typeof TESTS)[number]["kind"];
 
 interface TestResponse {
   error?: string;
+  volunteer?: string;
   sent?: number;
   failed?: number;
   results?: { to: string; ok: boolean; error?: string }[];
 }
 
 /**
- * Admin test buttons. Sends each of the three emails, with sample data, only to
- * the addresses typed here. Nothing is written to the queue.
+ * Admin test buttons. Picks a random volunteer, builds the email they would really get
+ * from their current details, and sends it only to the addresses typed here.
+ * Nothing is written to the queue.
  */
 export function EmailTestPanel() {
   const [emails, setEmails] = useState("");
@@ -50,7 +52,9 @@ export function EmailTestPanel() {
         const reason = body.results?.find((r) => !r.ok)?.error ?? "unknown error";
         toast.error(`Sent ${body.sent ?? 0}, failed ${body.failed}: ${reason}`, { duration: 15000 });
       } else {
-        toast.success(`Test sent to ${body.sent} address${body.sent === 1 ? "" : "es"}`);
+        toast.success(
+          `Sent as ${body.volunteer ?? "a volunteer"} to ${body.sent} address${body.sent === 1 ? "" : "es"}`,
+        );
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not send the test email");
@@ -63,8 +67,8 @@ export function EmailTestPanel() {
     <GlassCard className="p-5">
       <h2 className="mb-1 font-semibold text-amber-100">Test the emails</h2>
       <p className="mb-4 text-xs text-slate-500">
-        Each button sends that email to the addresses below, with sample shift details and a [TEST] subject.
-        Up to 10 addresses. Separate them with commas or spaces.
+        Each button picks a random volunteer, builds the email they would really get from their current shifts,
+        and sends it to the addresses below with a [TEST] subject. Up to 10 addresses. Separate them with commas or spaces.
       </p>
 
       <label className="block">

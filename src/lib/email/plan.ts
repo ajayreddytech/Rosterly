@@ -1,11 +1,13 @@
-import { eventEmailSendAt, isMorningShift, reminderSendAt } from "./schedule";
+import { isMorningShift, laterReminderSendAt, morningReminderSendAt } from "./schedule";
 
 /**
- * Decides which reminder emails each volunteer should get. Pure function, no
+ * Decides which reminder emails are queued automatically. Pure function, no
  * database or network access, so the cron job and the admin panel share it.
  *
- * Each volunteer gets at most ONE email per group, however many shifts they
- * hold. The email lists all their upcoming shifts.
+ * Each volunteer gets at most ONE email, however many shifts they hold. The
+ * email lists all their upcoming shifts. A volunteer with any morning shift gets
+ * the morning reminder; a volunteer with only later shifts gets the later reminder.
+ * Volunteers with no shift are not queued.
  */
 
 export type ReminderKind = "reminder_morning" | "reminder_later" | "reminder_event";
@@ -51,7 +53,6 @@ export function buildReminderPlan(
   now: Date = new Date(),
 ): PlannedReminder[] {
   const nowMs = now.getTime();
-  const everBooked = new Set(bookings.map((b) => b.user_id));
 
   const upcomingByUser = new Map<string, PlanBooking[]>();
   for (const b of bookings) {
@@ -62,38 +63,26 @@ export function buildReminderPlan(
   }
 
   const plan: PlannedReminder[] = [];
-  const eventSendAt = eventEmailSendAt();
 
   for (const v of volunteers) {
     const mine = (upcomingByUser.get(v.id) ?? []).sort(
       (a, b) => Date.parse(a.start_time) - Date.parse(b.start_time),
     );
-    const base = { user_id: v.id, full_name: v.full_name, email: v.email };
+    if (mine.length === 0) continue; // no shift: no automatic email
 
-    if (mine.length > 0) {
-      const morning = mine.filter((b) => isMorningShift(b.start_time));
-      const kind: ReminderKind = morning.length > 0 ? "reminder_morning" : "reminder_later";
-      const timed = kind === "reminder_morning" ? morning : mine;
-      const sendAt = timed
-        .map((b) => reminderSendAt(b.start_time))
-        .reduce((earliest, t) => (Date.parse(t) < Date.parse(earliest) ? t : earliest));
+    const hasMorning = mine.some((b) => isMorningShift(b.start_time));
+    const kind: ReminderKind = hasMorning ? "reminder_morning" : "reminder_later";
+    const sendAt = hasMorning ? morningReminderSendAt() : laterReminderSendAt();
 
-      plan.push({
-        ...base,
-        kind,
-        send_at: sendAt,
-        dedupe_key: `${kind}:${v.id}`,
-        shifts: mine.map(toShift),
-      });
-    } else if (!everBooked.has(v.id)) {
-      plan.push({
-        ...base,
-        kind: "reminder_event",
-        send_at: eventSendAt,
-        dedupe_key: `reminder_event:${v.id}`,
-        shifts: [],
-      });
-    }
+    plan.push({
+      user_id: v.id,
+      full_name: v.full_name,
+      email: v.email,
+      kind,
+      send_at: sendAt,
+      dedupe_key: `${kind}:${v.id}`,
+      shifts: mine.map(toShift),
+    });
   }
 
   return plan;

@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildReminderPlan, type PlanBooking, type PlannedReminder, type PlanVolunteer } from "./plan";
 import type { NewEmail } from "./outbox";
+import type { PlanShift } from "./plan";
 
 /** Turns plan rows into queue rows. `sendAt` overrides the scheduled time (used for "send now"). */
 export function toQueueRows(plan: PlannedReminder[], sendAt?: string): NewEmail[] {
@@ -22,6 +23,51 @@ interface AssignmentRow {
     end_time: string;
     departments: { name: string } | { name: string }[] | null;
   } | null;
+}
+
+/** A volunteer's details and shifts as they are in the database right now. */
+export interface CurrentVolunteer {
+  full_name: string;
+  email: string;
+  shifts: PlanShift[];
+}
+
+/**
+ * Reads one volunteer's current profile and shifts. Called right before an email
+ * is sent, so the email reflects any change made after it was queued.
+ * Returns null if the profile no longer exists.
+ */
+export async function loadCurrentVolunteer(userId: string): Promise<CurrentVolunteer | null> {
+  const admin = createAdminClient();
+  const [prof, assigns] = await Promise.all([
+    admin.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
+    admin
+      .from("shift_assignments")
+      .select("shifts(title, start_time, end_time, departments(name))")
+      .eq("user_id", userId),
+  ]);
+  if (prof.error) throw new Error(`Could not read volunteer: ${prof.error.message}`);
+  if (assigns.error) throw new Error(`Could not read shifts: ${assigns.error.message}`);
+  if (!prof.data) return null;
+
+  const shifts: PlanShift[] = [];
+  for (const row of (assigns.data ?? []) as unknown as { shifts: AssignmentRow["shifts"] }[]) {
+    const s = row.shifts;
+    if (!s) continue;
+    const dept = Array.isArray(s.departments) ? s.departments[0] : s.departments;
+    shifts.push({
+      title: s.title,
+      department: dept?.name ?? "",
+      start_time: s.start_time,
+      end_time: s.end_time,
+    });
+  }
+
+  return {
+    full_name: (prof.data.full_name as string) ?? "",
+    email: prof.data.email as string,
+    shifts,
+  };
 }
 
 /** Reads every volunteer and booking, then works out the full reminder plan. */
