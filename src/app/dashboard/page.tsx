@@ -11,25 +11,29 @@ export const metadata = { title: "Volunteer Dashboard" };
 
 // Per-user data is loaded inside Suspense so the shell can render instantly.
 // ?tab=guidelines opens the Guidelines tab (used by the links in emails).
-export default async function DashboardPage({
+export default function DashboardPage({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const tab = (await searchParams).tab === "guidelines" ? "guidelines" : "schedule";
   return (
     <div className="relative min-h-dvh">
       <AmbientBackground />
       <Suspense fallback={<PageSkeleton />}>
-        <DashboardContent initialTab={tab} />
+        <DashboardContent searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function DashboardContent({ initialTab }: { initialTab: "schedule" | "guidelines" }) {
+async function DashboardContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   // Per-user, time-sensitive data: render at request time, never prerender.
   await connection();
+  const initialTab = (await searchParams).tab === "guidelines" ? "guidelines" : "schedule";
   const supabase = await createClient();
   const {
     data: { user },
