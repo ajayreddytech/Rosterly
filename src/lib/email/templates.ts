@@ -130,10 +130,16 @@ function button(label: string, href: string): string {
 
 /** One shift, as a card with a saffron edge. */
 function shiftCard(s: PlanShift): string {
+  const deptLine = s.department
+    ? `<div style="font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:${C.label};font-weight:bold;">${esc(s.department)}</div>`
+    : "";
+  const titleLine = s.title
+    ? `<div style="font-family:${SERIF};font-size:18px;font-weight:bold;color:${C.ink};margin-top:4px;">${esc(s.title)}</div>`
+    : "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background:${C.shiftBg};border:1px solid ${C.line};border-left:4px solid ${C.shiftEdge};border-radius:8px;">
   <tr><td style="padding:16px 20px;">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:${C.label};font-weight:bold;">${esc(s.department)}</div>
-    <div style="font-family:${SERIF};font-size:18px;font-weight:bold;color:${C.ink};margin-top:4px;">${esc(s.title)}</div>
+    ${deptLine}
+    ${titleLine}
     <div style="margin-top:8px;color:${C.body};">${esc(formatDay(s.start_time))}</div>
     <div style="color:${C.body};">${esc(formatRange12(s.start_time, s.end_time))}</div>
   </td></tr>
@@ -184,7 +190,9 @@ function contactsText(): string {
 }
 
 function shiftText(s: PlanShift): string {
-  return `${s.department}: ${s.title}\n${formatDay(s.start_time)}, ${formatRange12(s.start_time, s.end_time)}`;
+  const label = [s.department, s.title].filter(Boolean).join(": ");
+  const when = `${formatDay(s.start_time)}, ${formatRange12(s.start_time, s.end_time)}`;
+  return label ? `${label}\n${when}` : when;
 }
 
 /* ---------------------------------------------------------------------------
@@ -199,7 +207,7 @@ function renderVolunteerEmail(p: { full_name: string; shifts: PlanShift[] }): Re
 
   const heading = hasShifts ? "Your upcoming shifts" : "Choose your volunteer roles";
   const preheader = hasShifts
-    ? `Your volunteer ${many ? "shifts" : "shift"}: ${shifts[0].title}`
+    ? `Your volunteer ${many ? "shifts" : "shift"}${shifts[0].title ? `: ${shifts[0].title}` : ""}`
     : "Please choose your volunteer roles";
   const intro = hasShifts ? REMINDER_LINE(many) : NO_SHIFT_LINE;
 

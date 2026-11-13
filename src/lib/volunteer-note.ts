@@ -82,7 +82,7 @@ export function noteShifts(note: string | null | undefined): PlanShift[] {
   const endDay = parsed.endMinutes <= parsed.startMinutes ? nextDay(GALA_DAY) : GALA_DAY;
   return [
     {
-      title: "Check-in and check-out",
+      title: "",
       department: "",
       start_time: zonedToIso(GALA_DAY, hhmm(parsed.startMinutes)),
       end_time: zonedToIso(endDay, hhmm(parsed.endMinutes)),

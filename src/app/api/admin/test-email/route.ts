@@ -3,6 +3,7 @@ import { emailConfigured, sendEmail } from "@/lib/email/brevo";
 import { loadCurrentVolunteer } from "@/lib/email/load-plan";
 import { renderEmail, type EmailKind } from "@/lib/email/outbox";
 import type { PlanShift } from "@/lib/email/plan";
+import { hasNoteShift } from "@/lib/volunteer-note";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,17 +27,21 @@ interface PickedVolunteer {
 async function pickVolunteer(kind: TestKind): Promise<PickedVolunteer | null> {
   const admin = createAdminClient();
   const [vols, assigned] = await Promise.all([
-    admin.from("profiles").select("id").eq("role", "volunteer"),
+    admin.from("profiles").select("id, note").eq("role", "volunteer"),
     admin.from("shift_assignments").select("user_id"),
   ]);
   if (vols.error) throw new Error(`Could not read volunteers: ${vols.error.message}`);
   if (assigned.error) throw new Error(`Could not read shifts: ${assigned.error.message}`);
 
-  const withShift = new Set((assigned.data ?? []).map((r) => r.user_id as string));
+  // A volunteer with a booking or a readable check-in note counts as having a shift.
+  const withBooking = new Set((assigned.data ?? []).map((r) => r.user_id as string));
   const wantShift = kind !== "reminder_event";
   const eligible = (vols.data ?? [])
-    .map((v) => v.id as string)
-    .filter((id) => withShift.has(id) === wantShift);
+    .filter((v) => {
+      const hasShift = withBooking.has(v.id as string) || hasNoteShift(v.note as string | null);
+      return hasShift === wantShift;
+    })
+    .map((v) => v.id as string);
   if (eligible.length === 0) return null;
 
   const id = eligible[Math.floor(Math.random() * eligible.length)];
