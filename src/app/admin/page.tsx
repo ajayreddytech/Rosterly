@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { AmbientBackground } from "@/components/layout/ambient-background";
 import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { AdminDashboard } from "@/components/admin/admin-dashboard";
+import { countSignedUp } from "@/lib/volunteer-note";
 import type {
   AttendanceRow,
   Department,
@@ -46,7 +47,7 @@ async function AdminContent() {
   // Authorization: only admins may view this page. RLS enforces it again on every query.
   if (!profile || (profile as Profile).role !== "admin") redirect("/dashboard");
 
-  const [deptRes, shiftRes, capacityRes, attendanceRes, volunteerCountRes, bookedVolunteerRes] = await Promise.all([
+  const [deptRes, shiftRes, capacityRes, attendanceRes, volunteersRes, assignedUsersRes] = await Promise.all([
     supabase.from("departments").select("*").order("name"),
     supabase.from("shifts").select("*").order("start_time"),
     supabase.from("shift_capacity").select("*"),
@@ -54,16 +55,15 @@ async function AdminContent() {
       .from("shift_assignments")
       .select("id, shift_id, assigned_at, profiles(full_name, email, phone)")
       .order("assigned_at", { ascending: true }),
-    supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "volunteer"),
-    // Volunteers with at least one confirmed shift (one row per profile, counted once).
-    supabase
-      .from("profiles")
-      .select("id, shift_assignments!inner(id)", { count: "exact", head: true })
-      .eq("role", "volunteer"),
+    supabase.from("profiles").select("id, note").eq("role", "volunteer"),
+    supabase.from("shift_assignments").select("user_id"),
   ]);
+
+  // A volunteer counts as signed up if they have a booking or a note with check-in times.
+  const signedUp = countSignedUp(
+    (volunteersRes.data ?? []) as { id: string; note: string | null }[],
+    ((assignedUsersRes.data ?? []) as { user_id: string }[]).map((r) => r.user_id),
+  );
 
   return (
     <>
@@ -74,8 +74,8 @@ async function AdminContent() {
           shifts={(shiftRes.data ?? []) as Shift[]}
           capacity={(capacityRes.data ?? []) as ShiftCapacity[]}
           attendance={(attendanceRes.data ?? []) as unknown as AttendanceRow[]}
-          volunteerCount={volunteerCountRes.count ?? 0}
-          bookedVolunteerCount={bookedVolunteerRes.count ?? 0}
+          volunteerCount={signedUp.total}
+          bookedVolunteerCount={signedUp.booked}
         />
       </main>
     </>

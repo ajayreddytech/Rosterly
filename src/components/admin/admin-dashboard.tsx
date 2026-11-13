@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { DepartmentFormDialog, ShiftFormDialog } from "./forms";
 import { EmailSchedule } from "./email-schedule";
 import { EmailTestPanel } from "./email-test-panel";
+import { countSignedUp, hasNoteShift } from "@/lib/volunteer-note";
 
 interface Props {
   departments: Department[];
@@ -108,20 +109,23 @@ export function AdminDashboard(props: Props) {
 
   const loadAttendance = useCallback(async () => {
     const supabase = createClient();
-    const [a, c, b] = await Promise.all([
+    const [a, v, assigned] = await Promise.all([
       supabase
         .from("shift_assignments")
         .select("id, shift_id, assigned_at, profiles(full_name, email, phone)")
         .order("assigned_at", { ascending: true }),
-      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "volunteer"),
-      supabase
-        .from("profiles")
-        .select("id, shift_assignments!inner(id)", { count: "exact", head: true })
-        .eq("role", "volunteer"),
+      supabase.from("profiles").select("id, note").eq("role", "volunteer"),
+      supabase.from("shift_assignments").select("user_id"),
     ]);
     if (a.data) setAttendance(a.data as unknown as AttendanceRow[]);
-    if (c.count !== null && c.count !== undefined) setVolunteerCount(c.count);
-    if (b.count !== null && b.count !== undefined) setBookedVolunteerCount(b.count);
+    if (!v.error && v.data && !assigned.error && assigned.data) {
+      const counts = countSignedUp(
+        v.data as { id: string; note: string | null }[],
+        (assigned.data as { user_id: string }[]).map((r) => r.user_id),
+      );
+      setVolunteerCount(counts.total);
+      setBookedVolunteerCount(counts.booked);
+    }
   }, []);
 
   const { capacity: capacityMap, refresh: refreshCapacity } = useLiveCapacity(
@@ -151,7 +155,7 @@ export function AdminDashboard(props: Props) {
     setUnbookedLoading(true);
     const { data, error } = await createClient()
       .from("profiles")
-      .select("id, full_name, email, phone, shift_assignments(id)")
+      .select("id, full_name, email, phone, note, shift_assignments(id)")
       .eq("role", "volunteer")
       .order("full_name");
     setUnbookedLoading(false);
@@ -159,10 +163,13 @@ export function AdminDashboard(props: Props) {
       toast.error(error.message);
       return;
     }
-    const rows = (data ?? []) as unknown as (UnbookedVolunteer & { shift_assignments: { id: string }[] })[];
+    const rows = (data ?? []) as unknown as (UnbookedVolunteer & {
+      note: string | null;
+      shift_assignments: { id: string }[];
+    })[];
     setUnbooked(
       rows
-        .filter((r) => r.shift_assignments.length === 0)
+        .filter((r) => r.shift_assignments.length === 0 && !hasNoteShift(r.note))
         .map(({ id, full_name, email, phone }) => ({ id, full_name, email, phone })),
     );
   }

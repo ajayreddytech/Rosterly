@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildReminderPlan, type PlanBooking, type PlannedReminder, type PlanVolunteer } from "./plan";
+import { noteShifts } from "@/lib/volunteer-note";
 import type { NewEmail } from "./outbox";
 import type { PlanShift } from "./plan";
 
@@ -40,7 +41,7 @@ export interface CurrentVolunteer {
 export async function loadCurrentVolunteer(userId: string): Promise<CurrentVolunteer | null> {
   const admin = createAdminClient();
   const [prof, assigns] = await Promise.all([
-    admin.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
+    admin.from("profiles").select("full_name, email, note").eq("id", userId).maybeSingle(),
     admin
       .from("shift_assignments")
       .select("shifts(title, start_time, end_time, departments(name))")
@@ -63,6 +64,9 @@ export async function loadCurrentVolunteer(userId: string): Promise<CurrentVolun
     });
   }
 
+  shifts.push(...noteShifts(prof.data.note as string | null));
+  shifts.sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time));
+
   return {
     full_name: (prof.data.full_name as string) ?? "",
     email: prof.data.email as string,
@@ -74,7 +78,7 @@ export async function loadCurrentVolunteer(userId: string): Promise<CurrentVolun
 export async function loadReminderPlan(now: Date = new Date()): Promise<PlannedReminder[]> {
   const admin = createAdminClient();
   const [vols, assigns] = await Promise.all([
-    admin.from("profiles").select("id, full_name, email").eq("role", "volunteer"),
+    admin.from("profiles").select("id, full_name, email, note").eq("role", "volunteer"),
     admin
       .from("shift_assignments")
       .select("user_id, shifts(title, start_time, end_time, departments(name))"),
@@ -86,6 +90,7 @@ export async function loadReminderPlan(now: Date = new Date()): Promise<PlannedR
     id: v.id as string,
     full_name: (v.full_name as string) ?? "",
     email: v.email as string,
+    note: (v.note as string | null) ?? null,
   }));
 
   const bookings: PlanBooking[] = [];

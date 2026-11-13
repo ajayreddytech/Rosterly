@@ -60,7 +60,7 @@ export function EmailSchedule() {
   const load = useCallback(async () => {
     const supabase = createClient();
     const [v, a, o] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, email").eq("role", "volunteer"),
+      supabase.from("profiles").select("id, full_name, email, note").eq("role", "volunteer"),
       supabase
         .from("shift_assignments")
         .select("user_id, shifts(title, start_time, end_time, departments(name))"),
@@ -68,7 +68,12 @@ export function EmailSchedule() {
     ]);
     if (!v.error && v.data) {
       setVolunteers(
-        v.data.map((r) => ({ id: r.id as string, full_name: (r.full_name as string) ?? "", email: r.email as string })),
+        v.data.map((r) => ({
+          id: r.id as string,
+          full_name: (r.full_name as string) ?? "",
+          email: r.email as string,
+          note: (r.note as string | null) ?? null,
+        })),
       );
     }
     if (!a.error && a.data) {
