@@ -1,5 +1,5 @@
 # Supabase URL and publishable (anon) key are public by design: Next.js embeds NEXT_PUBLIC_*
-# values in the browser bundle. Tell Netlify's secrets scanner to ignore only these two keys.
-# Keep the scanner on for everything else.
+# values in the browser bundle. SITE_URL is the public site address used in email links.
+# Tell Netlify's secrets scanner to ignore only these keys. Keep the scanner on for everything else.
 [build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SITE_URL"
