@@ -1,6 +1,6 @@
 import "server-only";
 import { CONTACTS, VENUE_ADDRESS, VENUE_NAME, WHATSAPP_GROUP_URL } from "@/lib/venue";
-import { formatDay, formatRange12, formatTime12 } from "@/lib/shifts";
+import { formatDay, formatRange12 } from "@/lib/shifts";
 import type { PlanShift } from "./plan";
 
 /** Details copied into email_outbox.payload when a booking email is queued. */
@@ -26,10 +26,22 @@ export interface RenderedEmail {
   text: string;
 }
 
+/* One template for every email. Only the shift cards (and their times) change per volunteer.
+ * Wording and layout follow email-previews/1-morning-reminder.html. */
+
+/** Subject line of every email. */
+const SUBJECT = "Reminder: Your Upcoming Volunteer Shifts - ISKCON 60th Anniversary Gala";
+
 /** Main heading of every email. */
 const GALA_TITLE = "ISKCON 60th Anniversary Gala";
-const THANK_YOU = "Thank you for signing up for the ISKCON Ksetra anniversary gala event.";
-const SUPPORT = "Your support is deeply appreciated.";
+const THANK_YOU = "Thank you for signing up for the ISKCON 60th Anniversary Gala. Your support is deeply appreciated.";
+const REMINDER_LINE = (many: boolean) => `This is a reminder of your upcoming volunteer ${many ? "shifts" : "shift"}.`;
+/** Shown instead of the shift cards when a volunteer has no shift yet. */
+const NO_SHIFT_LINE =
+  "We noticed that you have not yet chosen your roles or departments. Please note that role assignments close tonight. If you haven't done so yet, please sign in to the volunteer dashboard and select your preferred roles and departments.";
+const PREPARE =
+  "Please join the WhatsApp group if you are not already, and please read the volunteer guidelines before checking in. Please arrive at least 15 minutes early before your shift starts.";
+const DRESS_CODE = "Black Tie / Formal / Indian Devotional / Festival Attire.";
 
 /* Email palette: light and warm, with deep maroon and saffron accents. Chosen for
  * clear reading in every mail app; it does not follow the web app's colours. */
@@ -59,12 +71,6 @@ const DASHBOARD_URL = `${SITE}/dashboard`;
 const GUIDELINES_URL = `${SITE}/dashboard?tab=guidelines`;
 const LOGO_URL = `${SITE}/brand/logo-circle.png`;
 
-const DRESS_CODE = "Black tie / formal wear / Indian devotional or festival attire.";
-const CHECK_IN =
-  "As soon as you arrive, please check in at the reception and collect your volunteer badge.";
-const PREPARE =
-  "Please join the WhatsApp group if you are not already, and please read the volunteer guidelines before checking in. Please arrive at least 15 minutes early before your shift starts.";
-
 function esc(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -78,7 +84,7 @@ function displayName(full: string): string {
   return full.trim() || "Volunteer";
 }
 
-/** Shared frame for all three emails. */
+/** Shared frame for every email. */
 function layout(opts: { preheader: string; heading: string; bodyHtml: string }): string {
   const contacts = CONTACTS.map(
     (c) => `<div style="margin:0 0 6px;">${esc(c.name)}: <a href="tel:${esc(c.phone.replace(/\s/g, ""))}" style="color:${C.label};text-decoration:none;font-weight:bold;">${esc(c.phone)}</a></div>`,
@@ -139,35 +145,30 @@ function shiftCard(s: PlanShift): string {
 </table>`;
 }
 
-/** Volunteer resources block: WhatsApp group and guidelines. */
-function resourcesHtml(): string {
-  return `<p style="margin:22px 0 8px;font-family:${SERIF};font-size:16px;font-weight:bold;color:${C.ink};">Volunteer Resources</p>
-${button("Join the WhatsApp Group", WHATSAPP_GROUP_URL)}
-${outlineButton("Volunteer Guidelines", GUIDELINES_URL)}`;
-}
-
-/** Dress code and check-in notice, shown in every reminder and the event email. */
-function arrivalHtml(): string {
+/** Dress code box. */
+function dressCodeHtml(): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;background:${C.footerBg};border-radius:8px;">
   <tr><td style="padding:16px 20px;">
     <p style="margin:0;"><strong style="color:${C.ink};">Dress code:</strong> ${esc(DRESS_CODE)}</p>
-    <p style="margin:8px 0 0;"><strong style="color:${C.ink};">Check-in:</strong> ${esc(CHECK_IN)}</p>
   </td></tr>
 </table>`;
 }
 
-function resourcesText(): string {
-  return ["Volunteer Resources:", `- Join the WhatsApp Group: ${WHATSAPP_GROUP_URL}`, `- Volunteer Guidelines: ${GUIDELINES_URL}`].join("\n");
+/** Volunteer resources block: WhatsApp group and guidelines. */
+function resourcesHtml(): string {
+  return `<p style="margin:22px 0 8px;font-family:${SERIF};font-size:16px;font-weight:bold;color:${C.ink};">Volunteer Resources</p>
+${button("WhatsApp Group", WHATSAPP_GROUP_URL)}
+${outlineButton("Volunteer Guidelines", GUIDELINES_URL)}`;
 }
 
-function arrivalText(): string {
-  return `Dress code: ${DRESS_CODE}\nCheck-in: ${CHECK_IN}`;
+function resourcesText(): string {
+  return ["Volunteer Resources:", `- WhatsApp Group: ${WHATSAPP_GROUP_URL}`, `- Volunteer Guidelines: ${GUIDELINES_URL}`].join("\n");
 }
 
 const SIGN_OFF_1 = "Thank you for your time, devotion, and selfless service,";
 const SIGN_OFF_2 = "ISKCON 60th Anniversary Gala Organizing Team.";
 
-/** Closing lines at the end of each reminder and the event email. */
+/** Closing lines. */
 function signOffHtml(): string {
   return `<p style="margin:22px 0 0;color:${C.muted};">${esc(SIGN_OFF_1)}<br><strong style="color:${C.ink};">${esc(SIGN_OFF_2)}</strong></p>`;
 }
@@ -186,155 +187,70 @@ function shiftText(s: PlanShift): string {
 }
 
 /* ---------------------------------------------------------------------------
- * Booking emails (sent when a shift is booked or removed)
+ * The one email. Every kind below renders through this.
  * ------------------------------------------------------------------------- */
 
-export function renderBookingConfirmed(p: ShiftEmailPayload): RenderedEmail {
-  const day = formatDay(p.start_time);
-  const subject = `You're booked: ${p.title}, ${day}`;
-  const heading = "Your shift is confirmed";
-  const bodyHtml = `<p>Dear ${esc(displayName(p.full_name))},</p>
-<p>You are confirmed for the shift below.</p>
-${shiftCard(p)}
-<p>Please arrive at least 15 minutes early and check in with the volunteer coordinator.</p>
-${resourcesHtml()}`;
-  return {
-    subject,
-    html: layout({ preheader: `Confirmed: ${p.title}, ${day}`, heading, bodyHtml }),
-    text: `Dear ${displayName(p.full_name)},
-
-You are confirmed for:
-${shiftText(p)}
-
-Please arrive at least 15 minutes early and check in with the volunteer coordinator.
-
-${resourcesText()}
-${contactsText()}`,
-  };
-}
-
-export function renderBookingCancelled(p: ShiftEmailPayload): RenderedEmail {
-  const day = formatDay(p.start_time);
-  const subject = `Your shift was cancelled: ${p.title}, ${day}`;
-  const heading = "Shift cancelled";
-  const bodyHtml = `<p>Dear ${esc(displayName(p.full_name))},</p>
-<p>The shift below is no longer on your schedule.</p>
-${shiftCard(p)}
-<p>If you still want to volunteer, please pick another shift in the volunteer dashboard.</p>
-<p>${button("Go to Volunteer Dashboard", DASHBOARD_URL)}</p>
-${resourcesHtml()}`;
-  return {
-    subject,
-    html: layout({ preheader: `Removed: ${p.title}, ${day}`, heading, bodyHtml }),
-    text: `Dear ${displayName(p.full_name)},
-
-The shift below is no longer on your schedule:
-${shiftText(p)}
-
-If you still want to volunteer, please pick another shift in the volunteer dashboard:
-${DASHBOARD_URL}
-
-${resourcesText()}
-${contactsText()}`,
-  };
-}
-
-/* ---------------------------------------------------------------------------
- * Shift reminders: morning (today 4 PM) and later shifts (7 AM on the day).
- * One email per volunteer, listing every upcoming shift they hold.
- * ------------------------------------------------------------------------- */
-
-export function renderShiftReminder(p: ReminderPayload): RenderedEmail {
+function renderVolunteerEmail(p: { full_name: string; shifts: PlanShift[] }): RenderedEmail {
   const shifts = [...p.shifts].sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time));
-  const first = shifts[0];
+  const hasShifts = shifts.length > 0;
   const many = shifts.length > 1;
   const name = displayName(p.full_name);
-  const subject = many
-    ? `Reminder: your ${shifts.length} volunteer shifts, ${formatDay(first.start_time)}`
-    : `Reminder: ${first.title}, ${formatDay(first.start_time)} at ${formatTime12(first.start_time)}`;
-  const heading = many ? "Your upcoming shifts" : "Your upcoming shift";
+
+  const heading = hasShifts ? "Your upcoming shifts" : "Choose your volunteer roles";
+  const preheader = hasShifts
+    ? `Your volunteer ${many ? "shifts" : "shift"}: ${shifts[0].title}`
+    : "Please choose your volunteer roles";
+  const intro = hasShifts ? REMINDER_LINE(many) : NO_SHIFT_LINE;
+
   const bodyHtml = `<p style="font-family:${SERIF};font-size:17px;color:${C.ink};margin:0 0 16px;">Hare Krishna, ${esc(name)}</p>
 <p>${esc(THANK_YOU)}</p>
-<p>${esc(SUPPORT)}</p>
-<p>This is a reminder of your upcoming volunteer ${many ? "shifts" : "shift"}.</p>
-${shifts.map(shiftCard).join("")}
+<p>${esc(intro)}</p>
+${hasShifts ? shifts.map(shiftCard).join("") : `<p style="margin:10px 0 0;">${button("Go to Volunteer Dashboard", DASHBOARD_URL)}</p>`}
 <p>${esc(PREPARE)}</p>
-${arrivalHtml()}
+${dressCodeHtml()}
 ${resourcesHtml()}
-<p style="margin:24px 0 8px;"><strong style="color:${C.ink};">Plans changed?</strong> If you cannot make ${many ? "these shifts" : "this shift"}, please let a volunteer coordinator know as soon as possible, and/or update your shifts in the volunteer dashboard.</p>
-<p style="margin:10px 0 0;">${button("Go to Volunteer Dashboard", DASHBOARD_URL)}</p>
 ${signOffHtml()}`;
-  return {
-    subject,
-    html: layout({ preheader: `Your volunteer ${many ? "shifts" : "shift"}: ${first.title}`, heading, bodyHtml }),
-    text: `Hare Krishna, ${name}
 
-${THANK_YOU}
-${SUPPORT}
-
-This is a reminder of your upcoming volunteer ${many ? "shifts" : "shift"}:
-
-${shifts.map(shiftText).join("\n\n")}
-
-${PREPARE}
-
-${arrivalText()}
-
-${resourcesText()}
-
-Plans changed? If you cannot make ${many ? "these shifts" : "this shift"}, please let a volunteer coordinator know as soon as possible, and/or update your shifts in the volunteer dashboard:
-${DASHBOARD_URL}
-
-${SIGN_OFF_1}
-${SIGN_OFF_2}
-${contactsText()}`,
-  };
-}
-
-/* ---------------------------------------------------------------------------
- * Event email: registered volunteers with no shift (7 AM on the gala day).
- * Same format as the reminders. The middle section will carry the custom
- * times the volunteers gave; until then it keeps the approved wording.
- * ------------------------------------------------------------------------- */
-
-export function renderEventEmail(p: { full_name: string }): RenderedEmail {
-  const name = displayName(p.full_name);
-  const subject = "ISKCON 60th Gala: please choose your volunteer roles today";
-  const heading = "Choose your volunteer roles";
-  const middle =
-    "We noticed that you have not yet chosen your roles or departments. Please note that role assignments close tonight. If you haven't done so yet, please sign in to the volunteer dashboard and select your preferred roles and departments.";
-  const bodyHtml = `<p style="font-family:${SERIF};font-size:17px;color:${C.ink};margin:0 0 16px;">Hare Krishna, ${esc(name)}</p>
-<p>${esc(THANK_YOU)}</p>
-<p>${esc(SUPPORT)}</p>
-<p>${esc(middle)}</p>
-<p style="margin:10px 0 0;">${button("Go to Volunteer Dashboard", DASHBOARD_URL)}</p>
-<p>${esc(PREPARE)}</p>
-${arrivalHtml()}
-${resourcesHtml()}
-<p style="margin-top:24px;">If you encounter any issues or face errors while submitting your preferences, please send us an email and we will resolve it promptly.</p>
-${signOffHtml()}`;
   const text = `Hare Krishna, ${name}
 
 ${THANK_YOU}
-${SUPPORT}
 
-${middle}
-${DASHBOARD_URL}
-
+${intro}
+${hasShifts ? `\n${shifts.map(shiftText).join("\n\n")}\n` : `\n${DASHBOARD_URL}\n`}
 ${PREPARE}
 
-${arrivalText()}
+Dress code: ${DRESS_CODE}
 
 ${resourcesText()}
-
-If you encounter any issues or face errors while submitting your preferences, please send us an email and we will resolve it promptly.
 
 ${SIGN_OFF_1}
 ${SIGN_OFF_2}
 ${contactsText()}`;
+
   return {
-    subject,
-    html: layout({ preheader: "Please choose your volunteer roles", heading, bodyHtml }),
+    subject: SUBJECT,
+    html: layout({ preheader, heading, bodyHtml }),
     text,
   };
+}
+
+/* ---------------------------------------------------------------------------
+ * Entry points used by the outbox and the admin test panel. All of them render
+ * the same email; only the shifts differ.
+ * ------------------------------------------------------------------------- */
+
+export function renderBookingConfirmed(p: ShiftEmailPayload): RenderedEmail {
+  return renderVolunteerEmail({ full_name: p.full_name, shifts: [p] });
+}
+
+export function renderBookingCancelled(p: ShiftEmailPayload): RenderedEmail {
+  return renderVolunteerEmail({ full_name: p.full_name, shifts: [p] });
+}
+
+export function renderShiftReminder(p: ReminderPayload): RenderedEmail {
+  return renderVolunteerEmail({ full_name: p.full_name, shifts: p.shifts });
+}
+
+export function renderEventEmail(p: { full_name: string }): RenderedEmail {
+  return renderVolunteerEmail({ full_name: p.full_name, shifts: [] });
 }
