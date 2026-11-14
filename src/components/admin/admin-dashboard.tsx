@@ -98,6 +98,7 @@ export function AdminDashboard(props: Props) {
   const [unbooked, setUnbooked] = useState<UnbookedVolunteer[]>([]);
   const [sendingSignup, setSendingSignup] = useState(false);
   const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [whatsAppNoShiftsOpen, setWhatsAppNoShiftsOpen] = useState(false);
 
   /* ---------- data loading ---------- */
   const reloadStructure = useCallback(async () => {
@@ -366,6 +367,9 @@ export function AdminDashboard(props: Props) {
           </Button>
           <Button variant="outline" size="md" onClick={() => setWhatsAppOpen(true)}>
             <MessageCircle className="h-4 w-4" /> WhatsApp messages
+          </Button>
+          <Button variant="outline" size="md" onClick={() => setWhatsAppNoShiftsOpen(true)}>
+            <MessageCircle className="h-4 w-4" /> WhatsApp: no shifts
           </Button>
           <Button variant="danger" size="md" disabled title="Disabled for safety" onClick={() => setResetOpen(true)}>
             <RotateCcw className="h-4 w-4" /> Reset all fillings
@@ -738,6 +742,13 @@ export function AdminDashboard(props: Props) {
         onOpenChange={setWhatsAppOpen}
         shifts={shifts}
         departments={departments}
+      />
+      <WhatsAppMessages
+        open={whatsAppNoShiftsOpen}
+        onOpenChange={setWhatsAppNoShiftsOpen}
+        shifts={shifts}
+        departments={departments}
+        audience="no-shifts"
       />
       <DepartmentFormDialog
         open={deptDialog.open}

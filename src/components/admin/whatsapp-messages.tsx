@@ -13,11 +13,18 @@ import type { Department, Shift } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { noteShifts } from "@/lib/volunteer-note";
 
+/**
+ * "signed-up": volunteers with a shift booking or a note with times (the 41 in the dashboard count).
+ * "no-shifts": registered volunteers with neither, so they get a message to choose their roles.
+ */
+export type WhatsAppAudience = "signed-up" | "no-shifts";
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   shifts: Shift[];
   departments: Department[];
+  audience?: WhatsAppAudience;
 }
 
 /**
@@ -50,6 +57,28 @@ const DEFAULT_TEMPLATE = [
   "🔗 *Volunteer Resources*",
   "📖 Volunteer Guidelines: {guidelines}",
   "🖥️ Volunteer Dashboard: {dashboard}",
+  "",
+  "🙏 Thank you for your time, devotion, and selfless service,",
+  "*ISKCON 60th Anniversary Gala Organizing Team* ✨",
+  "",
+  "🆘 *Need help?*",
+  "Please contact one of our volunteer coordinators.",
+  "{contacts}",
+].join("\n");
+
+/* For volunteers with no shift yet. Mirrors the "choose your roles" email (NO_SHIFT_LINE in templates.ts). */
+const DEFAULT_NO_SHIFT_TEMPLATE = [
+  "🙏 Hare Krishna, {name}! 🌸",
+  "",
+  "Thank you for signing up for the ISKCON 60th Anniversary Gala 🎉 Your support is deeply appreciated 💛",
+  "",
+  "📅 We noticed that you have not yet chosen your roles or departments. Please note that role assignments close tonight. If you haven't done so yet, please sign in to the volunteer dashboard and select your preferred roles and departments.",
+  "",
+  "🔗 *Volunteer Resources*",
+  "🖥️ Volunteer Dashboard: {dashboard}",
+  "📖 Volunteer Guidelines: {guidelines}",
+  "",
+  "👗 Dress code: Black Tie / Formal / Indian Devotional / Festival Attire",
   "",
   "🙏 Thank you for your time, devotion, and selfless service,",
   "*ISKCON 60th Anniversary Gala Organizing Team* ✨",
@@ -94,36 +123,45 @@ export function buildMessage(
     .replace(/\{contacts\}/g, contacts);
 }
 
-export function WhatsAppMessages({ open, onOpenChange, shifts, departments }: Props) {
+export function WhatsAppMessages({ open, onOpenChange, shifts, departments, audience = "signed-up" }: Props) {
+  const noShifts = audience === "no-shifts";
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="WhatsApp messages"
-      description="Each volunteer gets a message with their own shifts. Tap Send, check the message in WhatsApp, then press send there."
+      title={noShifts ? "WhatsApp: volunteers with no shifts" : "WhatsApp messages"}
+      description={
+        noShifts
+          ? "Each volunteer gets a message asking them to choose their roles on the dashboard. Tap Send, check the message in WhatsApp, then press send there."
+          : "Each volunteer gets a message with their own shifts. Tap Send, check the message in WhatsApp, then press send there."
+      }
       className="max-w-2xl"
     >
       {/* Mounted only while open, so the list reloads and "sent" marks reset on every open. */}
-      <WhatsAppList shifts={shifts} departments={departments} />
+      <WhatsAppList shifts={shifts} departments={departments} audience={audience} />
     </Dialog>
   );
 }
 
-function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChange">) {
+function WhatsAppList({ shifts, departments, audience = "signed-up" }: Omit<Props, "open" | "onOpenChange">) {
+  const noShifts = audience === "no-shifts";
   const [loading, setLoading] = useState(true);
   const [volunteers, setVolunteers] = useState<VolunteerShifts[]>([]);
-  const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
+  const [template, setTemplate] = useState(noShifts ? DEFAULT_NO_SHIFT_TEMPLATE : DEFAULT_TEMPLATE);
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
-  // Load every volunteer who is signed up: a shift booking, or a note with check-in/check-out times.
+  // signed-up: every volunteer with a shift booking, or a note with check-in/check-out times.
+  // no-shifts: every registered volunteer with neither (same rule as the dashboard's "no shifts" list).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const supabase = createClient();
+      let profilesQuery = supabase.from("profiles").select("id, full_name, phone, note");
+      if (noShifts) profilesQuery = profilesQuery.eq("role", "volunteer");
       const [assignmentsRes, profilesRes] = await Promise.all([
         supabase.from("shift_assignments").select("user_id, shift_id"),
-        supabase.from("profiles").select("id, full_name, phone, note"),
+        profilesQuery,
       ]);
       if (cancelled) return;
       setLoading(false);
@@ -151,7 +189,11 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
         // Booked shifts take priority. A volunteer with no booking uses the times in their note.
         const booked = bookedByUser.get(p.id) ?? [];
         const slots: VolunteerSlot[] = booked.length > 0 ? booked : noteShifts(p.note);
-        if (slots.length === 0) continue;
+        if (noShifts) {
+          if (slots.length > 0) continue;
+        } else if (slots.length === 0) {
+          continue;
+        }
         list.push({
           userId: p.id,
           fullName: p.full_name ?? "",
@@ -165,7 +207,7 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
     return () => {
       cancelled = true;
     };
-  }, [shifts]);
+  }, [shifts, noShifts]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -236,7 +278,9 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
             <Loader2 className="h-5 w-5 animate-spin text-amber-300" />
           </div>
         ) : volunteers.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">No volunteers have a shift yet.</p>
+          <p className="py-6 text-center text-sm text-slate-400">
+            {noShifts ? "Every registered volunteer has at least one shift." : "No volunteers have a shift yet."}
+          </p>
         ) : (
           <ul className="max-h-[50dvh] divide-y divide-white/5 overflow-y-auto pr-1">
             {visible.map((v) => {
@@ -251,7 +295,8 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
                       {isSent && <CheckCircle2 className="ml-2 inline h-4 w-4 text-emerald-400" />}
                     </p>
                     <p className="text-xs text-slate-400">
-                      {v.shifts.length} shift{v.shifts.length === 1 ? "" : "s"} · {v.phone || "No phone number"}
+                      {noShifts ? "No shift yet" : `${v.shifts.length} shift${v.shifts.length === 1 ? "" : "s"}`} ·{" "}
+                      {v.phone || "No phone number"}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
