@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, MessageCircle } from "lucide-react";
+import { CheckCircle2, Download, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Dialog } from "@/components/ui/dialog";
@@ -30,27 +30,25 @@ interface VolunteerShifts {
 /* Mirrors the wording of the reminder email (src/lib/email/templates.ts).
  * WhatsApp formatting: *bold*, "- " lists. Placeholders are filled per volunteer. */
 const DEFAULT_TEMPLATE = [
-  "Hare Krishna, {name}",
+  "🙏 Hare Krishna, {name}! 🌸",
   "",
-  "Thank you for signing up for the ISKCON 60th Anniversary Gala. Your support is deeply appreciated.",
+  "Thank you for signing up for the ISKCON 60th Anniversary Gala 🎉 Your support is deeply appreciated 💛",
   "",
-  "This is a reminder of your upcoming volunteer {shift_word}.",
+  "📅 This is a reminder of your upcoming volunteer {shift_word}:",
   "",
   "{shifts}",
   "",
-  "Please join the WhatsApp group if you are not already, and please read the volunteer guidelines before checking in. Please arrive at least 15 minutes early before your shift starts.",
+  "👗 Dress code: Black Tie / Formal / Indian Devotional / Festival Attire",
   "",
-  "Dress code: Black Tie / Formal / Indian Devotional / Festival Attire.",
+  "🔗 *Volunteer Resources*",
+  "💬 WhatsApp Group: {group}",
+  "📖 Volunteer Guidelines: {guidelines}",
+  "🖥️ Volunteer Dashboard: {dashboard}",
   "",
-  "*Volunteer Resources*",
-  "- WhatsApp Group: {group}",
-  "- Volunteer Guidelines: {guidelines}",
-  "- Volunteer Dashboard: {dashboard}",
+  "🙏 Thank you for your time, devotion, and selfless service,",
+  "*ISKCON 60th Anniversary Gala Organizing Team* ✨",
   "",
-  "Thank you for your time, devotion, and selfless service,",
-  "*ISKCON 60th Anniversary Gala Organizing Team.*",
-  "",
-  "*Need help?*",
+  "🆘 *Need help?*",
   "Please contact one of our volunteer coordinators.",
   "{contacts}",
 ].join("\n");
@@ -68,7 +66,7 @@ function shiftBlock(s: Shift, departments: Department[]): string {
   const dept = departments.find((d) => d.id === s.department_id)?.name;
   const label = [dept, s.title].filter(Boolean).join(": ");
   const when = `${formatDay(s.start_time)}, ${formatRange12(s.start_time, s.end_time)}`;
-  return label ? `*${label}*\n${when}` : when;
+  return label ? `🌟 *${label}*\n🗓️ ${when}` : `🗓️ ${when}`;
 }
 
 /** The message text for one volunteer, with their own shifts listed. */
@@ -168,6 +166,20 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
 
   return (
     <div className="space-y-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-500/15 bg-slate-950/40 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-300">
+            <strong className="text-amber-200">Send the poster first.</strong> WhatsApp links can&apos;t attach files, so
+            for each volunteer: tap <em>Send on WhatsApp</em>, attach the poster (📎 → Photo) and send it, then send the
+            text message.
+          </p>
+          <a
+            href="/brand/gala-poster.png"
+            download="ISKCON-60th-Gala-Poster.png"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-500/15 px-3.5 text-sm font-medium text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-500/25"
+          >
+            <Download className="h-4 w-4" /> Download poster
+          </a>
+        </div>
         <div>
           <label htmlFor="wa_template" className="mb-1.5 block text-xs uppercase tracking-wide text-slate-400">
             Message template
