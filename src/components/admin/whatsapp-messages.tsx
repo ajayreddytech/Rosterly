@@ -11,6 +11,7 @@ import { formatDay, formatRange12 } from "@/lib/shifts";
 import { CONTACTS } from "@/lib/venue";
 import type { Department, Shift } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { noteShifts } from "@/lib/volunteer-note";
 
 interface Props {
   open: boolean;
@@ -19,12 +20,18 @@ interface Props {
   departments: Department[];
 }
 
-/** One volunteer with every shift they are booked into. */
+/**
+ * A time slot to list in the message. A booked shift has a department and title.
+ * A time from a volunteer's note (check-in/check-out) has neither, so it shows only the day and time.
+ */
+type VolunteerSlot = Pick<Shift, "start_time" | "end_time"> & Partial<Pick<Shift, "department_id" | "title">>;
+
+/** One volunteer with every slot they are signed up for: booked shifts, or times from their note. */
 interface VolunteerShifts {
   userId: string;
   fullName: string;
   phone: string | null;
-  shifts: Shift[];
+  shifts: VolunteerSlot[];
 }
 
 /* Mirrors the wording of the reminder email (src/lib/email/templates.ts).
@@ -61,7 +68,7 @@ export function toWhatsAppNumber(phone: string | null): string | null {
 }
 
 /** One shift as a block, the same layout the email uses: "Dept: Title" then the day and time. */
-function shiftBlock(s: Shift, departments: Department[]): string {
+function shiftBlock(s: VolunteerSlot, departments: Department[]): string {
   const dept = departments.find((d) => d.id === s.department_id)?.name;
   const label = [dept, s.title].filter(Boolean).join(": ");
   const when = `${formatDay(s.start_time)}, ${formatRange12(s.start_time, s.end_time)}`;
@@ -72,7 +79,7 @@ function shiftBlock(s: Shift, departments: Department[]): string {
 export function buildMessage(
   template: string,
   fullName: string,
-  shifts: Shift[],
+  shifts: VolunteerSlot[],
   departments: Department[],
 ): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -109,43 +116,50 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
-  // Load every booking with the volunteer's name and phone.
+  // Load every volunteer who is signed up: a shift booking, or a note with check-in/check-out times.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await createClient()
-        .from("shift_assignments")
-        .select("user_id, shift_id, profiles(full_name, phone)");
+      const supabase = createClient();
+      const [assignmentsRes, profilesRes] = await Promise.all([
+        supabase.from("shift_assignments").select("user_id, shift_id"),
+        supabase.from("profiles").select("id, full_name, phone, note"),
+      ]);
       if (cancelled) return;
       setLoading(false);
+      const error = assignmentsRes.error ?? profilesRes.error;
       if (error) {
         toast.error(error.message);
         return;
       }
       const shiftById = new Map(shifts.map((s) => [s.id, s]));
-      const byUser = new Map<string, VolunteerShifts>();
-      for (const row of (data ?? []) as unknown as {
-        user_id: string;
-        shift_id: string;
-        profiles: { full_name: string; phone: string | null } | null;
-      }[]) {
+      const bookedByUser = new Map<string, Shift[]>();
+      for (const row of (assignmentsRes.data ?? []) as { user_id: string; shift_id: string }[]) {
         const shift = shiftById.get(row.shift_id);
         if (!shift) continue;
-        const entry = byUser.get(row.user_id) ?? {
-          userId: row.user_id,
-          fullName: row.profiles?.full_name ?? "",
-          phone: row.profiles?.phone ?? null,
-          shifts: [],
-        };
-        entry.shifts.push(shift);
-        byUser.set(row.user_id, entry);
+        const booked = bookedByUser.get(row.user_id) ?? [];
+        booked.push(shift);
+        bookedByUser.set(row.user_id, booked);
       }
-      const list = [...byUser.values()]
-        .map((v) => ({
-          ...v,
-          shifts: v.shifts.sort((a, b) => a.start_time.localeCompare(b.start_time)),
-        }))
-        .sort((a, b) => a.fullName.localeCompare(b.fullName));
+      const list: VolunteerShifts[] = [];
+      for (const p of (profilesRes.data ?? []) as {
+        id: string;
+        full_name: string | null;
+        phone: string | null;
+        note: string | null;
+      }[]) {
+        // Booked shifts take priority. A volunteer with no booking uses the times in their note.
+        const booked = bookedByUser.get(p.id) ?? [];
+        const slots: VolunteerSlot[] = booked.length > 0 ? booked : noteShifts(p.note);
+        if (slots.length === 0) continue;
+        list.push({
+          userId: p.id,
+          fullName: p.full_name ?? "",
+          phone: p.phone ?? null,
+          shifts: [...slots].sort((a, b) => a.start_time.localeCompare(b.start_time)),
+        });
+      }
+      list.sort((a, b) => a.fullName.localeCompare(b.fullName));
       setVolunteers(list);
     })();
     return () => {
