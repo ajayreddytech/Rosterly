@@ -10,6 +10,7 @@ import {
   Gauge,
   Loader2,
   Mail,
+  MessageCircle,
   Pencil,
   Plus,
   RefreshCw,
@@ -43,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { DepartmentFormDialog, ShiftFormDialog } from "./forms";
 import { EmailSchedule } from "./email-schedule";
 import { EmailTestPanel } from "./email-test-panel";
+import { WhatsAppMessages } from "./whatsapp-messages";
 import { countSignedUp, hasNoteShift } from "@/lib/volunteer-note";
 
 interface Props {
@@ -95,6 +97,7 @@ export function AdminDashboard(props: Props) {
   const [unbookedLoading, setUnbookedLoading] = useState(false);
   const [unbooked, setUnbooked] = useState<UnbookedVolunteer[]>([]);
   const [sendingSignup, setSendingSignup] = useState(false);
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
 
   /* ---------- data loading ---------- */
   const reloadStructure = useCallback(async () => {
@@ -360,6 +363,9 @@ export function AdminDashboard(props: Props) {
           </Button>
           <Button variant="outline" size="md" onClick={exportCsv}>
             <Download className="h-4 w-4" /> Export CSV
+          </Button>
+          <Button variant="outline" size="md" onClick={() => setWhatsAppOpen(true)}>
+            <MessageCircle className="h-4 w-4" /> WhatsApp messages
           </Button>
           <Button variant="danger" size="md" disabled title="Disabled for safety" onClick={() => setResetOpen(true)}>
             <RotateCcw className="h-4 w-4" /> Reset all fillings
@@ -726,6 +732,12 @@ export function AdminDashboard(props: Props) {
           void reloadStructure();
           void refreshCapacity();
         }}
+      />
+      <WhatsAppMessages
+        open={whatsAppOpen}
+        onOpenChange={setWhatsAppOpen}
+        shifts={shifts}
+        departments={departments}
       />
       <DepartmentFormDialog
         open={deptDialog.open}
