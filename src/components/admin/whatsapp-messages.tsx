@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Download, Loader2, MessageCircle } from "lucide-react";
+import { CheckCircle2, Copy, Download, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDay, formatRange12 } from "@/lib/shifts";
-import { CONTACTS, WHATSAPP_GROUP_URL } from "@/lib/venue";
+import { CONTACTS } from "@/lib/venue";
 import type { Department, Shift } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +41,6 @@ const DEFAULT_TEMPLATE = [
   "👗 Dress code: Black Tie / Formal / Indian Devotional / Festival Attire",
   "",
   "🔗 *Volunteer Resources*",
-  "💬 WhatsApp Group: {group}",
   "📖 Volunteer Guidelines: {guidelines}",
   "🖥️ Volunteer Dashboard: {dashboard}",
   "",
@@ -83,7 +82,6 @@ export function buildMessage(
     .replace(/\{name\}/g, firstName)
     .replace(/\{shift_word\}/g, shifts.length > 1 ? "shifts" : "shift")
     .replace(/\{shifts\}/g, shifts.map((s) => shiftBlock(s, departments)).join("\n\n"))
-    .replace(/\{group\}/g, WHATSAPP_GROUP_URL)
     .replace(/\{guidelines\}/g, `${origin}/dashboard?tab=guidelines`)
     .replace(/\{dashboard\}/g, `${origin}/dashboard`)
     .replace(/\{contacts\}/g, contacts);
@@ -160,6 +158,16 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
     return q ? volunteers.filter((v) => v.fullName.toLowerCase().includes(q)) : volunteers;
   }, [volunteers, search]);
 
+  /** Copies the exact text (emojis included) so it can be pasted into WhatsApp. */
+  async function copyMessage(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Message copied. Paste it into WhatsApp.");
+    } catch {
+      toast.error("Could not copy. Select the text manually.");
+    }
+  }
+
   function markSent(userId: string) {
     setSent((prev) => new Set(prev).add(userId));
   }
@@ -193,7 +201,7 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
           />
           <p className="mt-1 text-xs text-slate-500">
             Placeholders filled in per volunteer: {"{name}"} first name, {"{shifts}"} their shift list, {"{shift_word}"} shift or shifts,
-            {" {group}, {guidelines}, {dashboard}, {contacts}"} links and contacts.
+            {" {guidelines}, {dashboard}, {contacts}"} links and contacts.
           </p>
         </div>
 
@@ -232,6 +240,10 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
                       {v.shifts.length} shift{v.shifts.length === 1 ? "" : "s"} · {v.phone || "No phone number"}
                     </p>
                   </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => void copyMessage(text)}>
+                    <Copy className="h-4 w-4" /> Copy
+                  </Button>
                   {number ? (
                     <a
                       href={`https://wa.me/${number}?text=${encodeURIComponent(text)}`}
@@ -251,6 +263,7 @@ function WhatsAppList({ shifts, departments }: Omit<Props, "open" | "onOpenChang
                       No valid number
                     </Button>
                   )}
+                  </div>
                 </li>
               );
             })}
